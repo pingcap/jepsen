@@ -76,6 +76,87 @@
   )
 )
 
+(defn start!
+  []
+  ; ./bin/pd-server --name=pd1
+  ;                 --data-dir=pd1
+  ;                 --client-urls="http://0.0.0.0:2379"
+  ;                 --peer-urls="http://0.0.0.0:2380"
+  ;                 --advertise-client-urls="http://n1:2379"
+  ;                 --advertise-peer-urls="http://n1:2380"
+  ;                 --initial-cluster="pd1=http://n1:2380, \
+  ;                                    pd2=http://n2:2380, \
+  ;                                    pd3=http://n3:2380" \
+  ;                                    pd4=http://n4:2380" \
+  ;                                    pd5=http://n5:2380" \
+  ;                 --log-file=pd.log
+  (cu/start-daemon!
+    {:logfile pdlogfile
+     :pidfile pdpidfile
+     :chdir   tidb-dir
+    }
+    pd
+    :--name                  (get-in tidb-map [node :pd])
+    :--data-dir              (get-in tidb-map [node :pd])
+    :--client-urls           (str "http://0.0.0.0:" client-port)
+    :--peer-urls             (str "http://0.0.0.0:" peer-port)
+    :--advertise-client-urls (client-url node)
+    :--advertise-peer-urls   (peer-url node)
+    :--initial-cluster       (initial-cluster test)
+    :--log-file              (str "pd.log")
+    :--config                pdconfigfile
+  )
+
+  (jepsen/synchronize test)
+  (Thread/sleep 10000)
+
+  ; ./bin/tikv-server --pd="n1:2379,n2:2379,n3:2379,n4:2379,n5:2379"
+  ;                   --addr="0.0.0.0:20160"
+  ;                   --advertise-addr="n1:20160"
+  ;                   --data-dir=tikv1
+  ;                   --log-file=tikv.log
+  (cu/start-daemon!
+    {:logfile kvlogfile
+     :pidfile kvpidfile
+     :chdir   tidb-dir
+    }
+    tikv
+    :--pd             (pd-endpoints test)
+    :--addr           (str "0.0.0.0:20160")
+    :--advertise-addr (str (name node) ":" "20160")
+    :--data-dir       (get-in tidb-map [node :kv])
+    :--log-file       (str "tikv.log")
+    :--config         tikvconfigfile
+  )
+
+  (jepsen/synchronize test)
+  (Thread/sleep 60000)
+
+  ; ./bin/tidb-server --store=tikv
+  ;                   --path="n1:2379,n2:2379,n3:2379,n4:2379,n5:2379"
+  ;                   --log-file=tidb.log
+  (cu/start-daemon!
+    {:logfile dblogfile
+     :pidfile dbpidfile
+     :chdir   tidb-dir
+    }
+    tidb
+    :--store     (str "tikv")
+    :--path      (pd-endpoints test)
+    :--log-file  (str "tidb.log")
+  )
+
+  (jepsen/synchronize test)
+  (Thread/sleep 10000)
+)
+
+(defn stop!
+  []
+  (cu/stop-daemon! tidbbin dbpidfile)
+  (cu/stop-daemon! tikvbin kvpidfile)
+  (cu/stop-daemon! pdbin   pdpidfile)
+)
+
 (defn db
   "TiDB"
   [opts]
@@ -84,87 +165,15 @@
       (c/su
         (info node "installing TiDB")
         (cu/install-tarball! node tidb-url tidb-dir)
-
-        ; ./bin/pd-server --name=pd1
-        ;                 --data-dir=pd1
-        ;                 --client-urls="http://0.0.0.0:2379"
-        ;                 --peer-urls="http://0.0.0.0:2380"
-        ;                 --advertise-client-urls="http://n1:2379"
-        ;                 --advertise-peer-urls="http://n1:2380"
-        ;                 --initial-cluster="pd1=http://n1:2380, \
-        ;                                    pd2=http://n2:2380, \
-        ;                                    pd3=http://n3:2380" \
-        ;                                    pd4=http://n4:2380" \
-        ;                                    pd5=http://n5:2380" \
-        ;                 --log-file=pd.log
         (c/exec :echo "[replication]\nmax-replicas=5" :> pdconfigfile)
-        (cu/start-daemon!
-          {:logfile pdlogfile
-           :pidfile pdpidfile
-           :chdir   tidb-dir
-          }
-          pd
-          :--name                  (get-in tidb-map [node :pd])
-          :--data-dir              (get-in tidb-map [node :pd])
-          :--client-urls           (str "http://0.0.0.0:" client-port)
-          :--peer-urls             (str "http://0.0.0.0:" peer-port)
-          :--advertise-client-urls (client-url node)
-          :--advertise-peer-urls   (peer-url node)
-          :--initial-cluster       (initial-cluster test)
-          :--log-file              (str "pd.log")
-          :--config                pdconfigfile
-        )
-
-        (jepsen/synchronize test)
-        (Thread/sleep 10000)
-
-        ; ./bin/tikv-server --pd="n1:2379,n2:2379,n3:2379,n4:2379,n5:2379"
-        ;                   --addr="0.0.0.0:20160"
-        ;                   --advertise-addr="n1:20160"
-        ;                   --data-dir=tikv1
-        ;                   --log-file=tikv.log
         (c/exec :echo "[raftstore]\npd-heartbeat-tick-interval=\"5s\"" :> tikvconfigfile)
-        (cu/start-daemon!
-          {:logfile kvlogfile
-           :pidfile kvpidfile
-           :chdir   tidb-dir
-          }
-          tikv
-          :--pd             (pd-endpoints test)
-          :--addr           (str "0.0.0.0:20160")
-          :--advertise-addr (str (name node) ":" "20160")
-          :--data-dir       (get-in tidb-map [node :kv])
-          :--log-file       (str "tikv.log")
-          :--config         tikvconfigfile
-        )
 
-        (jepsen/synchronize test)
-        (Thread/sleep 60000)
-
-        ; ./bin/tidb-server --store=tikv
-        ;                   --path="n1:2379,n2:2379,n3:2379,n4:2379,n5:2379"
-        ;                   --log-file=tidb.log
-        (cu/start-daemon!
-          {:logfile dblogfile
-           :pidfile dbpidfile
-           :chdir   tidb-dir
-          }
-          tidb
-          :--store     (str "tikv")
-          :--path      (pd-endpoints test)
-          :--log-file  (str "tidb.log")
-        )
-
-        (jepsen/synchronize test)
-        (Thread/sleep 10000)
+        (start!)
       )
     )
     (teardown! [_ test node]
       (info node "tearing down TiDB")
-      (cu/stop-daemon! tidbbin dbpidfile)
-      (cu/stop-daemon! tikvbin kvpidfile)
-      (cu/stop-daemon! pdbin   pdpidfile)
-      ;(c/su (c/exec :rm :-rf tidb-dir))
+      (stop!)
     )
 
     db/LogFiles
