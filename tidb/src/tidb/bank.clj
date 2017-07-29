@@ -119,22 +119,24 @@
         {:valid? (empty? bad-reads)
          :bad-reads bad-reads}))))
 
-(def n 5)
-(def initial-balance 10)
+(defn bank-test-base
+  [opts]
+  (basic/basic-test
+    (merge
+      {:client      {:client (:client opts)
+                     :during (->> (gen/mix [bank-read bank-diff-transfer])
+                                  (gen/clients)
+                                  (gen/stagger 0))
+                     :final (gen/clients (gen/once bank-read))}
+       :checker     (checker/compose
+                      {:perf    (checker/perf)
+                       :details (bank-checker)})}
+      (dissoc opts :client))))
 
 (defn test
   [opts]
-  (merge basic/basic-test
-    {:name "Bank"
-     :model  {:n n :total (* n initial-balance)}
-     :client {:client (bank-client n initial-balance " FOR UPDATE" false)
-              :during (->> (gen/mix [bank-read bank-diff-transfer])
-                           (gen/clients)
-                           (gen/stagger 1/10))
-              :final (gen/clients (gen/once bank-read))}
-     :checker (checker/compose
-                {:perf (checker/perf)
-                 :bank (bank-checker)})
-    }
-  dissoc opts :client)
-)
+  (bank-test-base
+    (merge {:name   "bank"
+            :model  {:n 5 :total 50}
+            :client (bank-client 5 10 " FOR UPDATE" false)}
+           opts)))
