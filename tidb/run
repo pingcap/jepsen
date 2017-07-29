@@ -1,0 +1,6 @@
+lein run test \
+  --test bank \
+  --nemesis none \
+  --nemesis2 none \
+  --time-limit 15 \
+  --test-count 1

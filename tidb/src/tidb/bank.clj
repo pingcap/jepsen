@@ -1,6 +1,5 @@
 (ns tidb.bank
   (:require [clojure.string :as str]
-            [jepsen.os.debian :as debian]
             [jepsen
               [client :as client]
               [tests :as tests]
@@ -10,8 +9,8 @@
             [knossos.op :as op]
             [clojure.core.reducers :as r]
             [clojure.java.jdbc :as j]
-            [tidb.client :refer :all]
-            [tidb.db :as db]
+            [tidb.sql :refer :all]
+            [tidb.basic :as basic]
   )
 )
 
@@ -120,30 +119,22 @@
         {:valid? (empty? bad-reads)
          :bad-reads bad-reads}))))
 
-(def n 2)
+(def n 5)
 (def initial-balance 10)
 
-(defn bank-test
+(defn test
   [opts]
-  (merge tests/noop-test
-    {:os debian/os
-     :name "TiDB-Bank"
-     :concurrency 20
+  (merge basic/basic-test
+    {:name "Bank"
      :model  {:n n :total (* n initial-balance)}
-     :db (db/db opts)
-     :client (bank-client n initial-balance " FOR UPDATE" false)
-     :generator (gen/phases
-                  (->> (gen/mix [bank-read bank-diff-transfer])
-                       (gen/clients)
-                       (gen/stagger 1/10)
-                       (gen/time-limit 15))
-                  (gen/log "waiting for quiescence")
-                  (gen/sleep 10)
-                  (gen/clients (gen/once bank-read)))
+     :client {:client (bank-client n initial-balance " FOR UPDATE" false)
+              :during (->> (gen/mix [bank-read bank-diff-transfer])
+                           (gen/clients)
+                           (gen/stagger 1/10))
+              :final (gen/clients (gen/once bank-read))}
      :checker (checker/compose
                 {:perf (checker/perf)
                  :bank (bank-checker)})
-
     }
-  )
+  dissoc opts :client)
 )

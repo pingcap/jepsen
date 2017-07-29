@@ -11,6 +11,7 @@
 )
 
 (def tidb-url "http://download.pingcap.org/tidb-latest-linux-amd64.tar.gz")
+
 (def tidb-dir "/opt/tidb")
 (def pd "./bin/pd-server")
 (def tikv "./bin/tikv-server")
@@ -77,7 +78,7 @@
 )
 
 (defn start!
-  []
+  [test node]
   ; ./bin/pd-server --name=pd1
   ;                 --data-dir=pd1
   ;                 --client-urls="http://0.0.0.0:2379"
@@ -151,7 +152,7 @@
 )
 
 (defn stop!
-  []
+  [test node]
   (cu/stop-daemon! tidbbin dbpidfile)
   (cu/stop-daemon! tikvbin kvpidfile)
   (cu/stop-daemon! pdbin   pdpidfile)
@@ -165,15 +166,16 @@
       (c/su
         (info node "installing TiDB")
         (cu/install-tarball! node tidb-url tidb-dir)
+
         (c/exec :echo "[replication]\nmax-replicas=5" :> pdconfigfile)
         (c/exec :echo "[raftstore]\npd-heartbeat-tick-interval=\"5s\"" :> tikvconfigfile)
 
-        (start!)
+        (start! test node)
       )
     )
     (teardown! [_ test node]
       (info node "tearing down TiDB")
-      (stop!)
+      (stop! test node)
     )
 
     db/LogFiles

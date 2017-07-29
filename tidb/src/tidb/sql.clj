@@ -1,4 +1,4 @@
-(ns tidb.client
+(ns tidb.sql
   (:require [clojure.string :as str]
             [jepsen
               [util :refer [timeout]]
