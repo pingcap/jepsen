@@ -33,11 +33,11 @@
 (def peer-port   2380)
 
 (def tidb-map
-  {:n1 {:pd "pd1" :kv "tikv1"}
-   :n2 {:pd "pd2" :kv "tikv2"}
-   :n3 {:pd "pd3" :kv "tikv3"}
-   :n4 {:pd "pd4" :kv "tikv4"}
-   :n5 {:pd "pd5" :kv "tikv5"}
+  {"n1" {:pd "pd1" :kv "tikv1"}
+   "n2" {:pd "pd2" :kv "tikv2"}
+   "n3" {:pd "pd3" :kv "tikv3"}
+   "n4" {:pd "pd4" :kv "tikv4"}
+   "n5" {:pd "pd5" :kv "tikv5"}
   }
 )
 

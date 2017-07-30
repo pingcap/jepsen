@@ -117,10 +117,10 @@
 ;; random partitions
 (defn parts
   []
+  (merge (nemesis-single-gen)
   {:name "parts"
-   :generator (nemesis-single-gen)
    :client (nemesis/partition-random-halves)
-   :clocks false})
+   :clocks false}))
 
 ;; start/stop server
 (defn startstop
