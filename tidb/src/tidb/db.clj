@@ -120,8 +120,6 @@
     :--path      (pd-endpoints test)
     :--log-file  (str "tidb.log")
   )
-
-  (jepsen/synchronize test)
 )
 
 (defn stop!
