@@ -2,7 +2,6 @@
   (:require [clojure.string :as str]
             [jepsen
               [client :as client]
-              [tests :as tests]
               [generator :as gen]
               [checker :as checker]
             ]
@@ -19,7 +18,7 @@
   (setup! [this test node]
     (j/with-db-connection [c (conn-spec (first (:nodes test)))]
       (j/execute! c ["create table if not exists accounts
-                     (id      int not null primary key,
+                     (id     int not null primary key,
                      balance bigint not null)"])
       (dotimes [i n]
         (try

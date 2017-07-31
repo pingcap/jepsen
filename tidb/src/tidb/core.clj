@@ -11,12 +11,15 @@
             [jepsen.core :as jepsen]
             [tidb.nemesis :as nemesis]
             [tidb.bank :as bank]
+            [tidb.sets :as sets]
   )
 )
 
 (def tests
   "A map of test names to test constructors."
-  {"bank" bank/test}
+  {"bank" bank/test
+   "sets" sets/test
+  }
 )
 
 (def oses
@@ -31,7 +34,6 @@
   {"none"                       `(nemesis/none)
    "parts"                      `(nemesis/parts)
    "majority-ring"              `(nemesis/majring)
-   "slow"                       `(nemesis/slow 250)
    "start-stop-2"               `(nemesis/startstop 2)
    "start-kill-2"               `(nemesis/startkill 2)
   }
