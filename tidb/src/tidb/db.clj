@@ -77,8 +77,53 @@
   )
 )
 
+(defn quickstart!
+  []
+  (cu/start-daemon!
+    {:logfile pdlogfile
+     :pidfile pdpidfile
+     :chdir   tidb-dir
+    }
+    pd
+    :--name                  (get-in tidb-map [c/*host* :pd])
+    :--data-dir              (get-in tidb-map [c/*host* :pd])
+    :--client-urls           (str "http://0.0.0.0:" client-port)
+    :--peer-urls             (str "http://0.0.0.0:" peer-port)
+    :--advertise-client-urls (client-url c/*host*)
+    :--advertise-peer-urls   (peer-url c/*host*)
+    :--initial-cluster       (initial-cluster {:nodes ["n1" "n2" "n3" "n4" "n5"]})
+    :--log-file              (str "pd.log")
+    :--config                pdconfigfile
+  )
+
+  (cu/start-daemon!
+    {:logfile kvlogfile
+     :pidfile kvpidfile
+     :chdir   tidb-dir
+    }
+    tikv
+    :--pd             (pd-endpoints {:nodes ["n1" "n2" "n3" "n4" "n5"]})
+    :--addr           (str "0.0.0.0:20160")
+    :--advertise-addr (str c/*host* ":" "20160")
+    :--data-dir       (get-in tidb-map [c/*host* :kv])
+    :--log-file       (str "tikv.log")
+    :--config         tikvconfigfile
+  )
+
+  (cu/start-daemon!
+    {:logfile dblogfile
+     :pidfile dbpidfile
+     :chdir   tidb-dir
+    }
+    tidb
+    :--store     (str "tikv")
+    :--path      (pd-endpoints {:nodes ["n1" "n2" "n3" "n4" "n5"]})
+    :--log-file  (str "tidb.log")
+  )
+)
+
 (defn start!
-  [test node]
+  [test node time1 time2 time3]
   ; ./bin/pd-server --name=pd1
   ;                 --data-dir=pd1
   ;                 --client-urls="http://0.0.0.0:2379"
@@ -109,7 +154,7 @@
   )
 
   (jepsen/synchronize test)
-  (Thread/sleep 10000)
+  (Thread/sleep time1)
 
   ; ./bin/tikv-server --pd="n1:2379,n2:2379,n3:2379,n4:2379,n5:2379"
   ;                   --addr="0.0.0.0:20160"
@@ -131,7 +176,7 @@
   )
 
   (jepsen/synchronize test)
-  (Thread/sleep 60000)
+  (Thread/sleep time2)
 
   ; ./bin/tidb-server --store=tikv
   ;                   --path="n1:2379,n2:2379,n3:2379,n4:2379,n5:2379"
@@ -148,7 +193,7 @@
   )
 
   (jepsen/synchronize test)
-  (Thread/sleep 10000)
+  (Thread/sleep time3)
 )
 
 (defn stop!
@@ -170,7 +215,7 @@
         (c/exec :echo "[replication]\nmax-replicas=5" :> pdconfigfile)
         (c/exec :echo "[raftstore]\npd-heartbeat-tick-interval=\"5s\"" :> tikvconfigfile)
 
-        (start! test node)
+        (start! test node 10000 60000 10000)
       )
     )
     (teardown! [_ test node]
