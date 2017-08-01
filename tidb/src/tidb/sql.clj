@@ -37,7 +37,8 @@
         (catch java.sql.SQLException e#
           (if (re-find #"can not retry select for update statement" (.getMessage e#))
             ::abort
-            (throw e#)))))
+            (throw e#)))
+        ))
 
 (defmacro with-txn-retries
   "Retries body on rollbacks."

@@ -40,9 +40,11 @@ database operations and exercise the database's consistency protocols.
   db processes on 2 nodes are stopped with SIGKILL and restarted from scratch
 
 *Time Limit*
+
 time to run test, usually 60, 180, ... seconds
 
 *Test Count*
+
 times to run test, should >= 1
 
 ## License
