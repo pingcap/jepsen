@@ -34,8 +34,8 @@
         (let [id   (key (:value op))
               val' (val (:value op))
               val  (-> c
-                       (j/query [(str "select val from test where id = ?" id)]
-                                {:row-fn :val})
+                       (j/query [(str "select * from test where id = ?") id]
+                                :row-fn :val)
                        first)]
           (case (:f op)
             :read (assoc op :type :ok, :value (independent/tuple id val))
