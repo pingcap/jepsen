@@ -147,28 +147,3 @@
          {:name "majring"
           :client (nemesis/partition-majorities-ring)
           :clocks false}))
-
-(defn slowing
-  "Wraps a nemesis. Before underlying nemesis starts, slows the network by dt
-  s. When underlying nemesis resolves, restores network speeds."
-  [nem dt]
-  (reify client/Client
-    (setup! [this test node]
-      (net/fast! (:net test) test)
-      (client/setup! nem test node)
-      this)
-
-    (invoke! [this test op]
-      (case (:f op)
-        :start (do (net/slow! (:net test) test {:mean (* dt 1000) :variance 1})
-                   (client/invoke! nem test op))
-
-        :stop (try (client/invoke! nem test op)
-                   (finally
-                     (net/fast! (:net test) test)))
-
-        (client/invoke! nem test op)))
-
-    (teardown! [this test]
-      (net/fast! (:net test) test)
-      (client/teardown! nem test))))
