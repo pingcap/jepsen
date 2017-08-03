@@ -1,8 +1,7 @@
 (ns tidb.g2
   "Tests for some common anomalies in weaker isolation levels"
   (:refer-clojure :exclude [test])
-  (:require [jepsen [cockroach :as cockroach]
-             [client :as client]
+  (:require [jepsen [client :as client]
              [checker :as checker]
              [generator :as gen]
              [independent :as independent]
@@ -26,11 +25,11 @@
       (j/execute! c "create table a (
                      id    int primary key,
                      key   int,
-                     value int)"))
+                     value int)")
       (j/execute! c "create table b (
                     id    int primary key,
                     key   int,
-                    value int)")
+                    value int)"))
 
       (assoc this :node node))
 
