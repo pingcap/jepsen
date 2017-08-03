@@ -13,6 +13,7 @@
             [tidb.bank :as bank]
             [tidb.sets :as sets]
             [tidb.register :as register]
+            [tidb.g2 :as g2]
   )
 )
 
@@ -21,6 +22,7 @@
   {"bank" bank/test
    "sets" sets/test
    "register" register/test
+   "g2"   g2/test
   }
 )
 
