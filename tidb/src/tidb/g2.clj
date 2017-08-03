@@ -32,16 +32,14 @@
         (case (:f op)
           :insert
             (letr [order (< (rand) 0.5)
-              as (j/query c [(str "select * from " (if order "a" "b") " where kk = ? and value % 3 = 0")
-                            k])
-              bs (j/query c [(str "select * from " (if order "b" "a") " where kk = ? and value % 3 = 0")
-                            k])
+              as (j/query c [(str "select * from " (if order "a" "b") " where kk = ? and value % 3 = 0") k])
+              bs (j/query c [(str "select * from " (if order "b" "a") " where kk = ? and value % 3 = 0") k])
               _ (when (or (seq as) (seq bs))
                   ; Ah, the other txn has already committed
                   (return (assoc op :type :fail :error :too-late)))
               table (if a-id "a" "b")
               id    (or a-id b-id)
-              r (j/insert! c :table {:id id, :kk k, :value 30})]
+              r (j/insert! c table {:id id, :kk k, :value 30})]
             (assoc op :type :ok))
 
           :read
