@@ -6,11 +6,11 @@ for test in "bank" "sets" "register"
 do
     for nemesis in "none" "parts" "majority-ring" "start-stop-2" "start-kill-2"
         do
-	    echo lein run test --test ${test} --nemesis ${nemesis} --time-limit 60 --recovery-time 30 --concurrency 10
-        if [ $? -ne 1 ]
-        then
-            echo ${test} ${nemesis} >> failed.log
-        fi
+	        lein run test --test ${test} --nemesis ${nemesis} --time-limit 60 --recovery-time 30 --concurrency 10
+            if [ $? -ne 0 ]
+            then
+                echo ${test} ${nemesis} >> failed.log
+            fi
     done
 done
 
