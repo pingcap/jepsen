@@ -12,7 +12,7 @@ database operations and exercise the database's consistency protocols.
 
 ## Running
 
-`lein run test --test sets --nemesis parts --time-limit 60 --test-count 1`
+`lein run test --test sets --nemesis parts --time-limit 60 --test-count 1 --concurrency 10`
 
 *Tests*
 
@@ -49,6 +49,10 @@ time to run test, usually 60, 180, ... seconds
 *Test Count*
 
 times to run test, should >= 1
+
+*Concurrency*
+
+number of thread, usually 10
 
 ## License
 
