@@ -5,7 +5,7 @@ A Clojure library designed to test TiDB, a distributed NewSQL Database.
 ## What is being tested?
 
 The tests run concurrent operations to some shared data from different
-nodes in a CockroachDB cluster and checks that the operations preserve
+nodes in a TiDB cluster and checks that the operations preserve
 the consistency properties defined in each test.  During the tests,
 various combinations of nemeses can be added to interfere with the
 database operations and exercise the database's consistency protocols.
@@ -14,43 +14,31 @@ database operations and exercise the database's consistency protocols.
 
 `lein run test --test sets --nemesis parts --time-limit 60 --test-count 1 --concurrency 10`
 
-*Tests*
+#### Tests
 
-``bank``
-  concurrent transfers between rows of a shared table;
++ **bank** concurrent transfers between rows of a shared table
++ **sets** concurrent unique appends to a shared table
 
-``sets``
-  concurrent unique appends to a shared table;
 
-``register``
-  concurrent atomic updates to a shared register
++ **register** concurrent atomic updates to a shared register
 
-*Nemeses*
+#### Nemeses
 
-``none``
-  no nemesis
++ **none** no nemesis
++ **parts** random network partitions
++ **majority-ring** random network partition where each node sees a majority of other nodes
++ **start-stop-2** db processes on 2 nodes are stopped and restarted with SIGSTOP/SIGCONT
++ **start-kill-2** db processes on 2 nodes are stopped with SIGKILL and restarted from scratch
 
-``parts``
-  random network partitions
-
-``majority-ring``
-  random network partition where each node sees a majority of other nodes
-
-``start-stop-2``
-  db processes on 2 nodes are stopped and restarted with SIGSTOP/SIGCONT
-
-``start-kill-2``
-  db processes on 2 nodes are stopped with SIGKILL and restarted from scratch
-
-*Time Limit*
+#### Time Limit
 
 time to run test, usually 60, 180, ... seconds
 
-*Test Count*
+#### Test Count
 
 times to run test, should >= 1
 
-*Concurrency*
+#### Concurrency
 
 number of thread, usually 10
 
