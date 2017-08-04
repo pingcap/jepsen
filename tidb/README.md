@@ -22,6 +22,9 @@ database operations and exercise the database's consistency protocols.
 ``sets``
   concurrent unique appends to a shared table;
 
+``register``
+  concurrent atomic updates to a shared register
+
 *Nemeses*
 
 ``none``
@@ -47,7 +50,7 @@ times to run test, should >= 1
 
 ## License
 
-Copyright © 2017 FIXME
+Copyright © 2017 TiDB
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.

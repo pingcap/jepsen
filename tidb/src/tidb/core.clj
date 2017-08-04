@@ -22,7 +22,6 @@
   {"bank" bank/test
    "sets" sets/test
    "register" register/test
-   "g2"   g2/test
   }
 )
 
