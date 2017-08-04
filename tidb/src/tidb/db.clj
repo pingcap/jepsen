@@ -149,8 +149,8 @@
         ;                 --advertise-peer-urls="http://n1:2380"
         ;                 --initial-cluster="pd1=http://n1:2380, \
         ;                                    pd2=http://n2:2380, \
-        ;                                    pd3=http://n3:2380" \
-        ;                                    pd4=http://n4:2380" \
+        ;                                    pd3=http://n3:2380, \
+        ;                                    pd4=http://n4:2380, \
         ;                                    pd5=http://n5:2380" \
         ;                 --log-file=pd.log
         (cu/start-daemon!
