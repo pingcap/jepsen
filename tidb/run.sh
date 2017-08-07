@@ -6,7 +6,7 @@ for test in "bank" "sets"
 do
     for nemesis in "none" "parts" "majority-ring" "start-stop-2" "start-kill-2"
         do
-	        echo lein run test --test ${test} --nemesis ${nemesis} --time-limit $t --concurrency 10
+	        lein run test --test ${test} --nemesis ${nemesis} --time-limit $t --concurrency 10
             if [ $? -ne 0 ]
             then
                 echo ${test} ${nemesis} >> failed.log
@@ -22,7 +22,11 @@ do
     else
         t=60
     fi
-    echo lein run test --test "register" --nemesis ${nemesis} --time-limit $t --concurrency 10
+    lein run test --test "register" --nemesis ${nemesis} --time-limit $t --concurrency 10
+    if [ $? -ne 0 ]
+    then
+        echo "register" ${nemesis} >> failed.log
+    fi
 done
 
 if [ ! -f "failed.log" ]
