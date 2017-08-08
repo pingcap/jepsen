@@ -1,10 +1,12 @@
 #! /bin/sh
 
 # for bank and sets test, we run 300 seconds
-# for register test, we run 300 with no nemesis
-#                           180 with parts & majority-ring nemesis
-#                           60 for start-stop-2 nemesis
-#                           0 for start-kill-2 because it will run out of memory when checking linearizability
+# for register test, we run
+#   1. 300 with no nemesis
+#   2. 180 with parts & majority-ring nemesis
+#   3.  60 for start-stop-2 nemesis
+#   4.  15 for start-kill-2
+#   the number varies because it will run out of memory when checking linearizability
 
 get_time() {
     if [ $1 = "register" ]
@@ -14,7 +16,7 @@ get_time() {
             return 60
         elif [ $2 = "start-kill-2" ]
         then
-            return 0
+            return 15
         elif [ $2 = "none" ]
         then
             return 300
