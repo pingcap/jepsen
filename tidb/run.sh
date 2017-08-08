@@ -5,7 +5,7 @@
 #   1. 300 with no nemesis
 #   2. 180 with parts & majority-ring nemesis
 #   3.  60 for start-stop-2 nemesis
-#   4.  15 for start-kill-2
+#   4.  15 for start-kill-2 nemesis
 #   the number varies because it will run out of memory when checking linearizability
 
 get_time() {
