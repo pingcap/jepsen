@@ -9,6 +9,9 @@ get_time() {
         elif [ $2 = "start-kill-2" ]
         then
             return 0
+        elif [ $2 = "none" ]
+        then
+            return 300
         else
             return 180
         fi
