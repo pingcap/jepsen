@@ -10,8 +10,6 @@
   )
 )
 
-(def tidb-url "http://download.pingcap.org/tidb-latest-linux-amd64.tar.gz")
-
 (def tidb-dir "/opt/tidb")
 (def pd "./bin/pd-server")
 (def tikv "./bin/tikv-server")
@@ -136,7 +134,7 @@
     (setup! [_ test node]
       (c/su
         (info node "installing TiDB")
-        (cu/install-tarball! node tidb-url tidb-dir)
+        (cu/install-tarball! node (:tarball test) tidb-dir)
 
         (c/exec :echo "[replication]\nmax-replicas=5" :> pdconfigfile)
         (c/exec :echo "[raftstore]\npd-heartbeat-tick-interval=\"5s\"" :> tikvconfigfile)

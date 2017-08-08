@@ -1,39 +1,33 @@
 #! /bin/sh
 
-rm failed.log
+get_time() {
+    if [ $1 = "register" ]
+    then
+        if [ $2 = "start-stop-2" ]
+        then
+            return 60
+        elif [ $2 = "start-kill-2" ]
+        then
+            return 0
+        else
+            return 180
+        fi
+    else
+        return 300
+    fi
+}
 
-for test in "bank" "sets"
+for test in "bank" "sets" "register"
 do
     for nemesis in "none" "parts" "majority-ring" "start-stop-2" "start-kill-2"
         do
-	        lein run test --test ${test} --nemesis ${nemesis} --time-limit $t --concurrency 10
+            get_time $test $nemesis
+            t=$?
+	        lein run test --test ${test} --nemesis ${nemesis} --time-limit ${t} --concurrency 10 --tarball $1
             if [ $? -ne 0 ]
             then
-                echo ${test} ${nemesis} >> failed.log
+                echo ${test} ${nemesis}
+                exit 1
             fi
     done
 done
-
-for nemesis in "none" "parts" "majority-ring" "start-stop-2"
-do
-    if [ ${nemesis} = "start-stop-2" ]
-    then
-        t=30
-    else
-        t=60
-    fi
-    lein run test --test "register" --nemesis ${nemesis} --time-limit $t --concurrency 10
-    if [ $? -ne 0 ]
-    then
-        echo "register" ${nemesis} >> failed.log
-    fi
-done
-
-if [ ! -f "failed.log" ]
-then
-    echo "test passed :)"
-    exit 0
-else
-    echo "test failed :(, see failed.log for detail"
-    exit 1
-fi
