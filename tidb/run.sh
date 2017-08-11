@@ -30,7 +30,7 @@ do
         do
             get_time $test $nemesis
             t=$?
-	        lein run test --test ${test} --nemesis ${nemesis} --time-limit ${t} --concurrency 10 --tarball $1
+	        lein run test --test ${test} --nemesis ${nemesis} --time-limit 10 --concurrency 10 --tarball $1
             if [ $? -ne 0 ]
             then
                 echo ${test} ${nemesis}
