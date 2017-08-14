@@ -36,5 +36,6 @@ do
                 echo ${test} ${nemesis}
                 exit 1
             fi
+	    sleep 15
     done
 done
