@@ -17,7 +17,7 @@ get_time() {
         then
             return 300
         else
-            return 60
+            return 30
         fi
     else
         return 300
