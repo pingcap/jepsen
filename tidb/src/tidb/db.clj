@@ -134,7 +134,7 @@
     (setup! [_ test node]
       (c/su
         (info node "installing TiDB")
-        (cu/install-tarball! node (:tarball test) tidb-dir)
+        (cu/install-archive! (:tarball test) tidb-dir true)
 
         (c/exec :echo "[replication]\nmax-replicas=5" :> pdconfigfile)
         (c/exec :echo "[raftstore]\npd-heartbeat-tick-interval=\"5s\"\nraft_store_max_leader_lease=\"900ms\"\nraft_base_tick_interval=\"100ms\"\nraft_heartbeat_ticks=3\nraft_election_timeout_ticks=10" :> tikvconfigfile)
