@@ -140,3 +140,68 @@
             :model  {:n 5 :total 50}
             :client (bank-client 5 10 " FOR UPDATE" false)}
            opts)))
+
+; One bank account per table
+(defrecord MultiBankClient [node n starting-balance lock-type in-place?]
+  client/Client
+  (setup! [this test node]
+    (j/with-db-connection [c (conn-spec (first (:nodes test)))]
+      (dotimes [i n]
+        (j/execute! c [(str "create table if not exists accounts" i
+                            "(id     int not null primary key,"
+                            "balance bigint not null)")])
+         (try
+           (with-txn-retries
+             (j/insert! c :accounts {:id i, :balance starting-balance}))
+           (catch java.sql.SQLIntegrityConstraintViolationException e nil))))
+
+    (assoc this :node node))
+
+  (invoke! [this test op]
+    (with-txn op [c (first (:nodes test))]
+      (try
+        (case (:f op)
+          :read (->> (range n)
+                     (mapv (fn [x]
+                             (->> (j/query
+                                   c [(str "select * from accounts" x)]
+                                   {:row-fn :balance})
+                                  first)))
+                     (assoc op :type :ok, :value))
+          :transfer
+          (let [{:keys [from to amount]} (:value op)
+                from (str "accounts" from)
+                to (str "accounts" to)
+                b1 (-> c
+                       (j/query [(str "select * from " from lock-type)]
+                         :row-fn :balance)
+                       first
+                       (- amount))
+                b2 (-> c
+                       (j/query [(str "select * from " from lock-type)]
+                         :row-fn :balance)
+                       first
+                       (+ amount))]
+            (cond (neg? b1)
+                  (assoc op :type :fail, :value [:negative from b1])
+                  (neg? b2)
+                  (assoc op :type :fail, :value [:negative to b2])
+                  true
+                  (if in-place?
+                    (do (j/update! c {:balance b1} [])
+                        (j/update! c {:balance b2} [])
+                        (assoc op :type :ok)))))))))
+
+  (teardown! [_ test])
+)
+
+(defn multitable-bank-client
+     [n starting-balance lock-type in-place?]
+     (MultiBankClient. nil n starting-balance lock-type in-place?))
+
+(defn multitable-test
+  [opts]
+  (bank-test-base
+   (merge {:name "bank-multitable"
+           :model {:n 5 :total 50}
+           :client (multitable-bank-client 5 10 " FOR UPDATE" false)})))
