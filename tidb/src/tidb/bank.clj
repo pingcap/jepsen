@@ -11,6 +11,7 @@
             [clojure.java.jdbc :as j]
             [tidb.sql :refer :all]
             [tidb.basic :as basic]
+            [clojure.tools.logging :refer :all]
   )
 )
 
@@ -151,8 +152,10 @@
                             "(id     int not null primary key,"
                             "balance bigint not null)")])
          (try
+           (Thread/sleep 500)
+           (info "Populating account" i)
            (with-txn-retries
-             (j/insert! c :accounts {:id i, :balance starting-balance}))
+             (j/insert! c (str "accounts" i) {:id i, :balance starting-balance}))
            (catch java.sql.SQLIntegrityConstraintViolationException e nil))))
 
     (assoc this :node node))
@@ -204,4 +207,5 @@
   (bank-test-base
    (merge {:name "bank-multitable"
            :model {:n 5 :total 50}
-           :client (multitable-bank-client 5 10 " FOR UPDATE" false)})))
+           :client (multitable-bank-client 5 10 " FOR UPDATE" false)}
+          opts)))
