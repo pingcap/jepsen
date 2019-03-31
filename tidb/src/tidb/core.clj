@@ -12,6 +12,7 @@
             [tidb.nemesis :as nemesis]
             [tidb.bank :as bank]
             [tidb.sets :as sets]
+            [tidb.adya :as adya]
             [tidb.register :as register]
   )
 )
@@ -21,6 +22,7 @@
   {"bank" bank/test
    "sets" sets/test
    "register" register/test
+   "g2" adya/g2-test
   }
 )
 
