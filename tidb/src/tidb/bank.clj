@@ -139,20 +139,25 @@
           opts)))
 
 ; One bank account per table
-(defrecord MultiBankClient [node n starting-balance lock-type in-place?]
+(defrecord MultiBankClient [node tbl-created? n starting-balance lock-type in-place?]
   client/Client
   (setup! [this test node]
-    (j/with-db-connection [c (conn-spec (first (:nodes test)))]
-      (dotimes [i n]
-        (j/execute! c [(str "create table if not exists accounts" i
-                            "(id     int not null primary key,"
-                            "balance bigint not null)")])
-        (try
-          (Thread/sleep 500)
-          (info "Populating account" i)
-          (with-txn-retries
-            (j/insert! c (str "accounts" i) {:id i, :balance starting-balance}))
-          (catch java.sql.SQLIntegrityConstraintViolationException e nil))))
+    (locking tbl-created?
+      (when (compare-and-set! tbl-created? false true)
+        (j/with-db-connection [c (conn-spec (first (:nodes test)))]
+          (dotimes [i n]
+            (Thread/sleep 500)
+            (info "Creating table accounts" i)
+            (j/execute! c [(str "create table if not exists accounts" i
+                                "(id     int not null primary key,"
+                                "balance bigint not null)")])
+            (Thread/sleep 500)
+            (try
+              (Thread/sleep 500)
+              (info "Populating account" i)
+              (with-txn-retries
+                (j/insert! c (str "accounts" i) {:id 0, :balance starting-balance}))
+              (catch java.sql.SQLIntegrityConstraintViolationException e nil))))))
 
     (assoc this :node node))
 
@@ -160,42 +165,47 @@
     (with-txn op [c (first (:nodes test))]
       (try
         (case (:f op)
-          :read (->> (range n)
-                     (mapv (fn [x]
-                             (->> (j/query
-                                   c [(str "select * from accounts" x)]
-                                   {:row-fn :balance})
-                                  first)))
-                     (assoc op :type :ok, :value))
+          :read
+          (->> (range n)
+               (mapv (fn [x]
+                       (->> (j/query
+                             c [(str "select balance from accounts" x)]
+                             :row-fn :balance)
+                            first)))
+               (assoc op :type :ok, :value))
           :transfer
           (let [{:keys [from to amount]} (:value op)
                 from (str "accounts" from)
-                to (str "accounts" to)
+                to   (str "accounts" to)
                 b1 (-> c
-                       (j/query [(str "select * from " from lock-type)]
-                                :row-fn :balance)
+                       (j/query
+                        [(str "select balance from " from lock-type)]
+                        :row-fn :balance)
                        first
                        (- amount))
                 b2 (-> c
-                       (j/query [(str "select * from " from lock-type)]
+                       (j/query [(str "select balance from " to lock-type)]
                                 :row-fn :balance)
                        first
                        (+ amount))]
             (cond (neg? b1)
-                  (assoc op :type :fail, :value [:negative from b1])
+                  (assoc op :type :fail, :error [:negative from b1])
                   (neg? b2)
-                  (assoc op :type :fail, :value [:negative to b2])
+                  (assoc op :type :fail, :error [:negative to b2])
                   true
                   (if in-place?
-                    (do (j/update! c {:balance b1} [])
-                        (j/update! c {:balance b2} [])
+                    (do (j/execute! c [(str "update " from " set balance = balance - ? where id = 0") amount])
+                        (j/execute! c [(str "update " to " set balance = balance + ? where id = 0") amount])
+                        (assoc op :type :ok))
+                    (do (j/update! c from {:balance b1} ["id = 0"])
+                        (j/update! c to {:balance b2} ["id = 0"])
                         (assoc op :type :ok)))))))))
 
   (teardown! [_ test]))
 
 (defn multitable-bank-client
   [n starting-balance lock-type in-place?]
-  (MultiBankClient. nil n starting-balance lock-type in-place?))
+  (MultiBankClient. nil (atom false) n starting-balance lock-type in-place?))
 
 (defn multitable-test
   [opts]
