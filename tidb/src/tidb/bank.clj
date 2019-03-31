@@ -2,18 +2,15 @@
   (:refer-clojure :exclude [test])
   (:require [clojure.string :as str]
             [jepsen
-              [client :as client]
-              [generator :as gen]
-              [checker :as checker]
-            ]
+             [client :as client]
+             [generator :as gen]
+             [checker :as checker]]
             [knossos.op :as op]
             [clojure.core.reducers :as r]
             [clojure.java.jdbc :as j]
             [tidb.sql :refer :all]
             [tidb.basic :as basic]
-            [clojure.tools.logging :refer :all]
-  )
-)
+            [clojure.tools.logging :refer :all]))
 
 (defrecord BankClient [node n starting-balance lock-type in-place?]
   client/Client
@@ -41,14 +38,14 @@
           (let [{:keys [from to amount]} (:value op)
                 b1 (-> c
                        (j/query [(str "select * from accounts where id = ?" lock-type) from]
-                         :row-fn :balance)
+                                :row-fn :balance)
                        first
                        (- amount))
                 b2 (-> c
                        (j/query [(str "select * from accounts where id = ?"
                                       lock-type)
                                  to]
-                         :row-fn :balance)
+                                :row-fn :balance)
                        first
                        (+ amount))]
             (cond (neg? b1)
@@ -64,8 +61,7 @@
                         (j/update! c :accounts {:balance b2} ["id = ?" to])
                         (assoc op :type :ok)))))))))
 
-  (teardown! [_ test])
-)
+  (teardown! [_ test]))
 
 (defn bank-client
   "Simulates bank account transfers between n accounts, each starting with
@@ -103,18 +99,18 @@
                            (r/filter op/ok?)
                            (r/filter #(= :read (:f %)))
                            (r/map (fn [op]
-                                  (let [balances (:value op)]
-                                    (cond (not= (:n model) (count balances))
-                                          {:type :wrong-n
-                                           :expected (:n model)
-                                           :found    (count balances)
-                                           :op       op}
-                                         (not= (:total model)
-                                               (reduce + balances))
-                                         {:type :wrong-total
-                                          :expected (:total model)
-                                          :found    (reduce + balances)
-                                          :op       op}))))
+                                    (let [balances (:value op)]
+                                      (cond (not= (:n model) (count balances))
+                                            {:type :wrong-n
+                                             :expected (:n model)
+                                             :found    (count balances)
+                                             :op       op}
+                                            (not= (:total model)
+                                                  (reduce + balances))
+                                            {:type :wrong-total
+                                             :expected (:total model)
+                                             :found    (reduce + balances)
+                                             :op       op}))))
                            (r/filter identity)
                            (into []))]
         {:valid? (empty? bad-reads)
@@ -123,24 +119,24 @@
 (defn bank-test-base
   [opts]
   (basic/basic-test
-    (merge
-      {:client      {:client (:client opts)
-                     :during (->> (gen/mix [bank-read bank-diff-transfer])
-                                  (gen/clients)
-                                  (gen/stagger 0))
-                     :final (gen/clients (gen/once bank-read))}
-       :checker     (checker/compose
-                      {:perf    (checker/perf)
-                       :details (bank-checker)})}
-      (dissoc opts :client))))
+   (merge
+    {:client      {:client (:client opts)
+                   :during (->> (gen/mix [bank-read bank-diff-transfer])
+                                (gen/clients)
+                                (gen/stagger 0))
+                   :final (gen/clients (gen/once bank-read))}
+     :checker     (checker/compose
+                   {:perf    (checker/perf)
+                    :details (bank-checker)})}
+    (dissoc opts :client))))
 
 (defn test
   [opts]
   (bank-test-base
-    (merge {:name   "bank"
-            :model  {:n 5 :total 50}
-            :client (bank-client 5 10 " FOR UPDATE" false)}
-           opts)))
+   (merge {:name   "bank"
+           :model  {:n 5 :total 50}
+           :client (bank-client 5 10 " FOR UPDATE" false)}
+          opts)))
 
 ; One bank account per table
 (defrecord MultiBankClient [node n starting-balance lock-type in-place?]
@@ -151,12 +147,12 @@
         (j/execute! c [(str "create table if not exists accounts" i
                             "(id     int not null primary key,"
                             "balance bigint not null)")])
-         (try
-           (Thread/sleep 500)
-           (info "Populating account" i)
-           (with-txn-retries
-             (j/insert! c (str "accounts" i) {:id i, :balance starting-balance}))
-           (catch java.sql.SQLIntegrityConstraintViolationException e nil))))
+        (try
+          (Thread/sleep 500)
+          (info "Populating account" i)
+          (with-txn-retries
+            (j/insert! c (str "accounts" i) {:id i, :balance starting-balance}))
+          (catch java.sql.SQLIntegrityConstraintViolationException e nil))))
 
     (assoc this :node node))
 
@@ -177,12 +173,12 @@
                 to (str "accounts" to)
                 b1 (-> c
                        (j/query [(str "select * from " from lock-type)]
-                         :row-fn :balance)
+                                :row-fn :balance)
                        first
                        (- amount))
                 b2 (-> c
                        (j/query [(str "select * from " from lock-type)]
-                         :row-fn :balance)
+                                :row-fn :balance)
                        first
                        (+ amount))]
             (cond (neg? b1)
@@ -195,12 +191,11 @@
                         (j/update! c {:balance b2} [])
                         (assoc op :type :ok)))))))))
 
-  (teardown! [_ test])
-)
+  (teardown! [_ test]))
 
 (defn multitable-bank-client
-     [n starting-balance lock-type in-place?]
-     (MultiBankClient. nil n starting-balance lock-type in-place?))
+  [n starting-balance lock-type in-place?]
+  (MultiBankClient. nil n starting-balance lock-type in-place?))
 
 (defn multitable-test
   [opts]
