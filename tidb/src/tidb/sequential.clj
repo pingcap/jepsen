@@ -57,8 +57,8 @@
           (do (doseq [k ks]
                 (let [table (key->table table-count k)]
                   (with-txn-retries
-                    (j/insert! c table {:tkey k}))
-                  (assoc op :type :ok))))
+                    (j/insert! c table {:tkey k}))))
+              (assoc op :type :ok))
           :read
           (->> ks
                reverse
