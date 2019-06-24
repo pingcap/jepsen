@@ -184,18 +184,17 @@
   [& body]
   `(try ~@body
         (catch java.sql.SQLTransactionRollbackException e#
-          (if (= (.getMessage e#) rollback-msg)
+          (if (ends-with? (.getMessage e#) rollback-msg)
             ::abort
             (throw e#)))
         (catch java.sql.BatchUpdateException e#
-          (if (= (.getMessage e#) rollback-msg)
+          (if (ends-with? (.getMessage e#) rollback-msg)
             ::abort
             (throw e#)))
         (catch java.sql.SQLException e#
           (condp re-find (.getMessage e#)
             #"can not retry select for update statement" ::abort
             #"\[try again later\]" ::abort
-            #"Deadlock" ::abort
             (throw e#)))))
 
 (defmacro with-txn-retries
