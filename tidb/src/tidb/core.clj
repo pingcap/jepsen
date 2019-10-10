@@ -445,7 +445,11 @@
    ["-w" "--workload NAME" "Test workload to run"
     :parse-fn keyword
     :missing (str "--workload " (jc/one-of workloads))
-    :validate [workloads (jc/one-of workloads)]]])
+    :validate [workloads (jc/one-of workloads)]]
+
+   [nil "--txn-mode MODE" "Which transaction mode the test uses"
+    :default "optimistic"
+    :validate [#{"optimistic" "pessimistic" "mixed"} "Must be 'optimistic', 'pessimistic' or 'mixed'"]]])
 
 (defn test-all-cmd
   "A command that runs a whole suite of tests in one go."

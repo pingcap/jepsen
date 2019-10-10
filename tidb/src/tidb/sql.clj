@@ -44,7 +44,12 @@
     (info :setting-auto-retry-limit (:auto-retry-limit test 10))
     (j/execute! conn ["set @@tidb_retry_limit = ?"
                       (:auto-retry-limit test 10)]))
-  (j/execute! conn ["set @@tidb_txn_mode = 'pessimistic'"])
+
+  (let [mode (if (= (:txn-mode test) "mixed")
+               (if (= 0 (rand-int 2)) "pessimistic" "optimistic")
+               (:txn-mode test))]
+    (info :setting-txn-mode mode)
+    (j/execute! conn [(str "set @@tidb_txn_mode = '" mode "'")]))
 
   conn)
 
