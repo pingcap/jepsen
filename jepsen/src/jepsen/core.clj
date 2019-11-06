@@ -302,7 +302,7 @@
 
   Worker
   (worker-name [this]
-    (str "worker " worker-number))
+    (str "worker " worker-number "-" (name node)))
 
   (abort-worker! [this]
     (reset! abort? true))
@@ -329,6 +329,7 @@
             (when-not client
               (try
                 ; Open a new client
+                (info "open a new client")
                 (set! (.client this) (client/open! (:client test) test node))
                 (catch Exception e
                   (warn e "Error opening client")
