@@ -12,6 +12,11 @@
             [tidb.basic :as basic]
             [clojure.tools.logging :refer :all]))
 
+(defn transfer_value [from to b1 b2 ammout]
+  {:from [from (+ b1 ammout) b1]
+   :to [to (- b2 ammout) b2]
+   :ammout ammout})
+
 (defrecord BankClient [conn]
   client/Client
   (open! [this test node]
@@ -66,10 +71,10 @@
                   (if (:update-in-place test)
                     (do (c/execute! c ["update accounts set balance = balance - ? where id = ?" amount from])
                         (c/execute! c ["update accounts set balance = balance + ? where id = ?" amount to])
-                        (assoc op :type :ok))
+                        (assoc op :type :ok, :value (transfer_value from to b1 b2 amount)))
                     (do (c/update! c :accounts {:balance b1} ["id = ?" from])
                         (c/update! c :accounts {:balance b2} ["id = ?" to])
-                        (assoc op :type :ok)))))))))
+                        (assoc op :type :ok :value (transfer_value from to b1 b2 amount))))))))))
 
   (teardown! [_ test])
 
@@ -146,10 +151,10 @@
                   (if (:update-in-place test)
                     (do (c/execute! c [(str "update " from " set balance = balance - ? where id = 0") amount])
                         (c/execute! c [(str "update " to " set balance = balance + ? where id = 0") amount])
-                        (assoc op :type :ok))
+                        (assoc op :type :ok :value (transfer_value from to b1 b2 amount)))
                     (do (c/update! c from {:balance b1} ["id = 0"])
                         (c/update! c to {:balance b2} ["id = 0"])
-                        (assoc op :type :ok)))))))))
+                        (assoc op :type :ok :value (transfer_value from to b1 b2 amount))))))))))
 
   (teardown! [_ test])
 
