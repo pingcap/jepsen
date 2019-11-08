@@ -12,11 +12,11 @@
             [tidb.basic :as basic]
             [clojure.tools.logging :refer :all]))
 
-(defn transfer_value [ts from to b1 b2 ammout]
-  {:ts ts
-   :from [from (+ b1 ammout) b1]
-   :to [to (- b2 ammout) b2]
-   :ammout ammout})
+(defn transfer_value [ts from to b1 b2 amount]
+  {:ts     ts
+   :from   [from (+ b1 amount) b1]
+   :to     [to (- b2 amount) b2]
+   :amount amount})
 
 (defn txn_ts [c] (first (c/query c ["select @@tidb_current_ts as ts"] {:row-fn :ts})))
 
