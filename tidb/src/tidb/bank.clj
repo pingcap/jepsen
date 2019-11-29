@@ -163,7 +163,7 @@
                         (assoc op :type :ok :value (transfer_value (txn_ts c)  from to b1 b2 amount))))))))))
 
   (teardown! [_ test]
-    (if (and (= "n1" (:tidb.sql/node conn)) (= 100 (cal-sum-total @(:history test))))
+    (if (and (= "n1" (:tidb.sql/node conn)) (not= 100 (cal-sum-total @(:history test))))
       (try
         (do
           (info (slurp "http://n1:10080/mvcc/key/test/accounts1/0"))
