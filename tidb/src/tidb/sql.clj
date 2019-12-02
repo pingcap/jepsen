@@ -49,7 +49,8 @@
                (if (= 0 (rand-int 2)) "pessimistic" "optimistic")
                (:txn-mode test))]
     (info :setting-txn-mode mode)
-    (j/execute! conn [(str "set @@tidb_txn_mode = '" mode "'")]))
+    (j/execute! conn [(str "set @@tidb_txn_mode = '" mode "'")])
+    (j/execute! conn [(str "set @@tidb_general_log = 1")]))
 
   (when (:follower-read test)
     (info :setting-follower-read)
