@@ -19,12 +19,14 @@
 (defn read-key
   "Read a specific key's value from the table. Missing values are represented
   as -1."
-  [c test k]
-  (-> (c/query c [(str "select (val) from cycle where "
-                       (if (:use-index test) "pk" "sk") " = ?")
-                  k])
-      first
-      (:val -1)))
+  ([c test k]
+   (read-key c test k false))
+  ([c test k lock?]
+   (-> (c/query c [(str "select (val) from cycle where "
+                        (if (:use-index test) "sk" "pk") " = ?" (when lock? " for update"))
+                   k])
+       first
+       (:val -1))))
 
 (defn read-keys
   "Read several keys values from the table, returning a map of keys to values."
@@ -67,7 +69,7 @@
                      (assoc op :type :ok, :value {}))
 
                  ; Update via separate r/w
-                 (let [v (read-key c test k)]
+                 (let [v (read-key c test k (not= "optimistic" (:txn-mode test)))]
                    (if (= -1 v)
                      (c/insert! c "cycle" {:pk k, :sk k, :val 0})
                      (c/update! c "cycle" {:val (inc v)},
