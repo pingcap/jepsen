@@ -466,7 +466,11 @@
     :validate [#{:repeatable-read :read-committed} "Must be one of 'repeatable-read', 'read-committed'"]]
 
    [nil "--follower-read" "whether to open follower read"
-    :default false]])
+    :default false]
+
+   [nil "--init-sql STMTS", "SQL Statements to be executed for each connection"
+    :parse-fn #(->> (str/split % #";") (map str/trim) (drop-while empty))
+    :default nil]])
 
 (defn test-all-cmd
   "A command that runs a whole suite of tests in one go."
