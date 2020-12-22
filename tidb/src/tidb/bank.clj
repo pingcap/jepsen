@@ -20,7 +20,7 @@
 
 (defn txn_ts [c] (first (c/query c ["select @@tidb_current_ts as ts"] {:row-fn :ts})))
 
-(defrecord BankClient [conn]
+(defrecord BankClient [conn tbl-created?]
   client/Client
   (open! [this test node]
     (assoc this :conn (c/open node test)))
@@ -28,11 +28,18 @@
   (setup! [this test]
     ; sigh, tidb falls over if it gets more than a handful of contended
     ; requests per second; let's try to make its life easier
-    (locking BankClient
+    (when (compare-and-set! tbl-created? false true)
       (c/with-conn-failure-retry conn
+        (c/execute! conn ["drop table if exists accounts"])
         (c/execute! conn ["create table if not exists accounts
                           (id     int not null primary key,
                           balance bigint not null)"])
+        ; pre-split table
+        (c/execute! conn [(str "split table accounts by "
+                                (->> (:accounts test)
+                                     (filter even?)
+                                     (map #(str "(" % ")"))
+                                     (str/join ",")))])
         (doseq [a (:accounts test)]
           (try
             (with-txn-retries conn
@@ -87,7 +94,7 @@
 (defn workload
   [opts]
   (assoc (bank/test)
-         :client (BankClient. nil)))
+         :client (BankClient. nil (atom false))))
 
 (defn cal-sum-total [history]
   (apply + (vals (:value (last (filter #(and (= :ok (:type %)) (= :read (:f %))) history))))))
