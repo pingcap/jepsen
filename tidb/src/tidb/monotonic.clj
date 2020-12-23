@@ -8,13 +8,13 @@
             [clojure.tools.logging :refer [info]]
             [jepsen [client :as client]
                     [checker :as checker]
-                    [generator :as gen]
-                    [util :as util]]
+                    [generator :as gen]]
             [jepsen.checker.timeline :as timeline]
             [jepsen.tests.cycle :as cycle]
             [jepsen.tests.cycle.append :as append]
             [tidb [sql :as c :refer :all]
-                  [txn :as txn]]))
+                  [txn :as txn]
+                  [util :as util]]))
 
 (defn read-key
   "Read a specific key's value from the table. Missing values are represented
@@ -51,7 +51,7 @@
         (c/create-index! conn ["create index cycle_sk_val on cycle (sk, val)"]))))
 
   (invoke! [this test op]
-    (c/with-txn op [c conn {:isolation (get test :isolation :repeatable-read)}]
+    (c/with-txn op [c conn {:isolation (util/isolation-level test)}]
     ;(let [c conn]
       (case (:f op)
         :read (let [v (read-keys c test (shuffle (keys (:value op))))]
@@ -92,7 +92,7 @@
   (fn [] {:type  :invoke
           :f     :read
           :value (-> (range key-count)
-                     ;util/random-nonempty-subset
+                     ;jepsen.util/random-nonempty-subset
                      (zipmap (repeat nil)))}))
 
 (defn incs [key-count]

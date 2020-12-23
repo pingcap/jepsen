@@ -16,12 +16,12 @@
              [core :as jepsen]
              [generator :as gen]
              [independent :as independent]
-             [util :as util :refer [meh]]]
+             [util :refer [meh]]]
             [jepsen.tests.causal-reverse :as cr]
             [clojure.set :as set]
             [clojure.tools.logging :refer :all]
             [tidb.sql :as c :refer :all]
-            [tidb.basic :as basic]
+            [tidb.util :as util]
             [knossos.model :as model]
             [knossos.op :as op]
             [clojure.core.reducers :as r]))
@@ -63,7 +63,7 @@
                (c/insert! conn table {:id id, :tkey k})
                (assoc op :type :ok))
 
-      :read (with-txn op [c conn {:isolation (get test :isolation :repeatable-read)}]
+      :read (with-txn op [c conn {:isolation (util/isolation-level test)}]
               (->> (table-names table-count)
                    (mapcat (fn [table]
                              (c/query c [(str "select id from "

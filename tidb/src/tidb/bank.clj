@@ -9,7 +9,7 @@
             [knossos.op :as op]
             [clojure.core.reducers :as r]
             [tidb.sql :as c :refer :all]
-            [tidb.basic :as basic]
+            [tidb.util :as util]
             [clojure.tools.logging :refer :all]))
 
 (defn transfer_value [ts from to b1 b2 amount]
@@ -50,7 +50,7 @@
             (catch java.sql.SQLIntegrityConstraintViolationException e nil))))))
 
   (invoke! [this test op]
-    (with-txn op [c conn {:isolation (get test :isolation :repeatable-read)}]
+    (with-txn op [c conn {:isolation (util/isolation-level test)}]
       (try
         (case (:f op)
           :read (->> (c/query c [(str "select * from accounts")])
@@ -140,7 +140,7 @@
                 (assoc op :type :ok, :value)))
 
           :transfer
-          (with-txn op [c conn {:isolation (get test :isolation :repeatable-read)}]
+          (with-txn op [c conn {:isolation (util/isolation-level test)}]
             (let [{:keys [from to amount]} (:value op)
                   from (str "accounts" from)
                   to   (str "accounts" to)
@@ -171,6 +171,7 @@
                           (assoc op :type :ok :value (transfer_value (txn_ts c)  from to b1 b2 amount))))))))))
 
   (teardown! [_ test]
+    ; FIXME: fix hard-code node name 'n1'
     (if (and (= "n1" (:tidb.sql/node conn)) (not= 100 (cal-sum-total @(:history test))))
       (try
         (do

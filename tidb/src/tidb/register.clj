@@ -11,7 +11,7 @@
             [clojure.java.jdbc :as j]
             [clojure.tools.logging :refer :all]
             [tidb.sql :as c :refer :all]
-            [tidb.basic :as basic]
+            [tidb.util :as util]
             [knossos.model :as model]))
 
 (defn r   [_ _] {:type :invoke, :f :read, :value nil})
@@ -44,7 +44,7 @@
   (invoke! [this test op]
     (c/with-error-handling op
       (c/with-txn-aborts op
-        (j/with-db-transaction [c conn {:isolation (get test :isolation :repeatable-read)}]
+        (j/with-db-transaction [c conn {:isolation (util/isolation-level test)}]
           (let [[id val'] (:value op)]
             (case (:f op)
               :read (assoc op

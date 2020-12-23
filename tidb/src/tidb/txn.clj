@@ -3,7 +3,8 @@
   (:require [clojure.tools.logging :refer [info]]
             [jepsen [client :as client]
                     [generator :as gen]]
-            [tidb.sql :as c :refer :all]))
+            [tidb.sql :as c :refer :all]
+            [tidb.util :as util]))
 
 (defn table-name
   "Takes an integer and constructs a table name."
@@ -69,7 +70,7 @@
           use-txn? (< 1 (count txn))]
           ;use-txn? false]
           (if use-txn?
-            (c/with-txn op [c conn {:isolation (get test :isolation :repeatable-read)}]
+            (c/with-txn op [c conn {:isolation (util/isolation-level test)}]
               (assoc op :type :ok, :value
                      (mapv (partial mop! c test table-count) txn)))
             (c/with-error-handling op

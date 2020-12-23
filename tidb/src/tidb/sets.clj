@@ -6,7 +6,8 @@
                     [generator :as gen]]
             [knossos.op :as op]
             [tidb.sql :as c :refer :all]
-            [tidb.basic :as basic]))
+            [tidb.basic :as basic]
+            [tidb.util :as util]))
 
 (defrecord SetClient [conn]
   client/Client
@@ -49,7 +50,7 @@
                         value   text)"])))
 
   (invoke! [this test op]
-    (c/with-txn op [c conn {:isolation (get test :isolation :repeatable-read)}]
+    (c/with-txn op [c conn {:isolation (util/isolation-level test)}]
       (case (:f op)
         :add  (let [e (:value op)]
                 (if-let [v (-> (c/query c [(str "select (value) from sets"
