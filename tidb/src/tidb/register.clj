@@ -44,26 +44,28 @@
   (invoke! [this test op]
     (c/with-error-handling op
       (c/with-txn-aborts op
-        (j/with-db-transaction [c conn {:isolation (util/isolation-level test)}]
-          (let [[id val'] (:value op)]
-            (case (:f op)
-              :read (assoc op
-                           :type  :ok
-                           :value (independent/tuple id (read c test id)))
+        (c/attach-commit-ts conn
+          (j/with-db-transaction [c conn {:isolation (util/isolation-level test)}]
+            (c/attach-start-ts c
+              (let [[id val'] (:value op)]
+                (case (:f op)
+                  :read (assoc op
+                               :type  :ok
+                               :value (independent/tuple id (read c test id)))
 
-              :write (do (c/execute! c [(str "insert into test (id, sk, val) "
-                                             "values (?, ?, ?) "
-                                             "on duplicate key update "
-                                             "val = ?")
-                                        id id val' val'])
-                         (assoc op :type :ok))
+                  :write (do (c/execute! c [(str "insert into test (id, sk, val) "
+                                                 "values (?, ?, ?) "
+                                                 "on duplicate key update "
+                                                 "val = ?")
+                                            id id val' val'])
+                             (assoc op :type :ok))
 
-              :cas (let [[expected-val new-val] val'
-                         v   (read c test id)]
-                     (if (= v expected-val)
-                       (do (c/update! c :test {:val new-val} ["id = ?" id])
-                           (assoc op :type :ok))
-                       (assoc op :type :fail, :error :precondition-failed)))))))))
+                  :cas (let [[expected-val new-val] val'
+                             v   (read c test id)]
+                         (if (= v expected-val)
+                           (do (c/update! c :test {:val new-val} ["id = ?" id])
+                               (assoc op :type :ok))
+                           (assoc op :type :fail, :error :precondition-failed)))))))))))
 
   (teardown! [this test])
 

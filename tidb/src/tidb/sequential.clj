@@ -68,7 +68,7 @@
               (let [table (key->table table-count k)]
                 (with-txn-retries
                   (c/insert! conn table {:tkey k}))))
-            (assoc op :type :ok))
+            (c/attach-txn-info conn (assoc op :type :ok)))
         :read
         (->> ks
              reverse

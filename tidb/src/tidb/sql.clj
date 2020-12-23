@@ -4,6 +4,7 @@
             [jepsen [util :as util :refer [default timeout]]]
             [clojure.java.jdbc :as j]
             [clojure.tools.logging :refer [info warn]]
+            [cheshire.core :as json]
             [slingshot.slingshot :refer [try+ throw+]]))
 
 (def txn-timeout     5000)
@@ -249,8 +250,10 @@
   [op opts & body]
   `(timeout (+ 1000 socket-timeout) (assoc ~op :type :info, :error :timed-out)
             (with-error-handling ~op
-              (with-txn-retries
-                (j/with-db-transaction ~opts ~@body)))))
+              (let [op# (with-txn-retries
+                          (j/with-db-transaction ~opts
+                            (attach-start-ts ~(first opts) (do ~@body))))]
+                (attach-commit-ts ~(second opts) op#)))))
 
 (defmacro with-conn
   [[c node] & body]
@@ -269,3 +272,31 @@
        (catch java.sql.SQLSyntaxErrorException e
          (when-not (re-find #"index already exist" (.getMessage e))
            (throw e)))))
+
+(defn attach-start-ts
+  [conn op]
+  (try
+    (let [start_ts (first (query conn ["select @@tidb_current_ts ts"] {:row-fn #(Long. (:ts %))}))]
+      (if (pos? start_ts) (assoc op :txn-info {:start_ts start_ts}) op))
+    (catch Exception e
+      (do (info "failed to obtain start-ts:" (.getMessage e)) op))))
+
+(defn attach-commit-ts
+  [conn op]
+  (try
+    (if-let [start_ts (get-in op [:txn-info :start_ts])]
+      (let [info (json/parse-string (:info (first (query conn ["select @@tidb_last_txn_info info"]))) true)]
+        (if (= start_ts (:start_ts info))
+            (assoc op :txn-info info)
+            op))
+      op)
+    (catch Exception e
+      (do (info "failed to obtain commit-ts:" (.getMessage e)) op))))
+
+(defn attach-txn-info
+  [conn op]
+  (try
+    (let [info (json/parse-string (:info (first (query conn ["select @@tidb_last_txn_info info"]))) true)]
+      (assoc op :txn-info info))
+    (catch Exception e
+      (do (info "failed to obtain txn-info:" (.getMessage e)) op))))

@@ -25,7 +25,7 @@
       (c/with-txn-aborts op
         (case (:f op)
           :add  (do (c/insert! conn :sets (select-keys op [:value]))
-                    (assoc op :type :ok))
+                    (c/attach-txn-info conn (assoc op :type :ok)))
 
           :read (->> (c/query conn ["select * from sets"])
                      (mapv :value)
