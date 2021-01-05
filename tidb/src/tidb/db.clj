@@ -356,7 +356,7 @@
               (not (cu/exists? tidb-dir)))
       (info node "installing TiDB")
       (info (tarball-url test))
-      (cu/install-archive! (tarball-url test) tidb-dir)
+      (cu/install-archive! (tarball-url test) tidb-dir (:force-reinstall test))
       (info "Syncing disks to avoid slow fsync on db start")
       (c/exec :sync))
     ; (if-let [ratio (:faketime test)]
