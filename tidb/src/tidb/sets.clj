@@ -23,6 +23,7 @@
   (invoke! [this test op]
     (c/with-error-handling op
       (c/with-txn-aborts op
+        (c/rand-init-txn! test conn)
         (case (:f op)
           :add  (do (c/insert! conn :sets (select-keys op [:value]))
                     (c/attach-txn-info conn (assoc op :type :ok)))
@@ -50,7 +51,8 @@
                         value   text)"])))
 
   (invoke! [this test op]
-    (c/with-txn op [c conn {:isolation (util/isolation-level test)}]
+    (c/with-txn op [c conn {:isolation (util/isolation-level test)
+                            :before-hook (partial c/rand-init-txn! test conn)}]
       (case (:f op)
         :add  (let [e (:value op)]
                 (if-let [v (-> (c/query c [(str "select (value) from sets"

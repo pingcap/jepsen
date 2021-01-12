@@ -251,6 +251,9 @@
   `(timeout (+ 1000 socket-timeout) (assoc ~op :type :info, :error :timed-out)
             (with-error-handling ~op
               (let [op# (with-txn-retries
+                          (when-let [opts# (first [~@(rest (rest opts))])]
+                            (when-let [before-hook# (:before-hook opts#)]
+                              (before-hook#)))
                           (j/with-db-transaction ~opts
                             (attach-start-ts ~(first opts) (do ~@body))))]
                 (attach-commit-ts ~(second opts) op#)))))
@@ -272,6 +275,14 @@
        (catch java.sql.SQLSyntaxErrorException e
          (when-not (re-find #"index already exist" (.getMessage e))
            (throw e)))))
+
+(defn rand-init-txn!
+  [test conn]
+  (let [stmts (:init-txn-sql test)
+        stmt (when-not (empty? stmts) (rand-nth stmts))]
+    (when stmt
+      (info (str "init-txn> " stmt))
+      (execute! conn [stmt] {:transaction? false}))))
 
 (defn attach-start-ts
   [conn op]

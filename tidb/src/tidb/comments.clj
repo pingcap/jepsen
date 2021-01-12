@@ -60,6 +60,7 @@
     (case (:f op)
       :write (let [[k id] (:value op)
                    table (id->table table-count id)]
+               (c/rand-init-txn! test conn)
                (c/insert! conn table {:id id, :tkey k})
                (assoc op :type :ok))
 

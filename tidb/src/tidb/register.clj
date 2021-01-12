@@ -53,7 +53,8 @@
                                :type  :ok
                                :value (independent/tuple id (read c test id)))
 
-                  :write (do (c/execute! c [(str "insert into test (id, sk, val) "
+                  :write (do (c/rand-init-txn! test c)
+                             (c/execute! c [(str "insert into test (id, sk, val) "
                                                  "values (?, ?, ?) "
                                                  "on duplicate key update "
                                                  "val = ?")
@@ -63,7 +64,8 @@
                   :cas (let [[expected-val new-val] val'
                              v   (read c test id)]
                          (if (= v expected-val)
-                           (do (c/update! c :test {:val new-val} ["id = ?" id])
+                           (do (c/rand-init-txn! test c)
+                               (c/update! c :test {:val new-val} ["id = ?" id])
                                (assoc op :type :ok))
                            (assoc op :type :fail, :error :precondition-failed)))))))))))
 

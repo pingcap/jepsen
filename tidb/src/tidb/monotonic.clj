@@ -51,7 +51,8 @@
         (c/create-index! conn ["create index cycle_sk_val on cycle (sk, val)"]))))
 
   (invoke! [this test op]
-    (c/with-txn op [c conn {:isolation (util/isolation-level test)}]
+    (c/with-txn op [c conn {:isolation (util/isolation-level test)
+                            :before-hook (partial c/rand-init-txn! test conn)}]
     ;(let [c conn]
       (case (:f op)
         :read (let [v (read-keys c test (shuffle (keys (:value op))))]

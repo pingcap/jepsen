@@ -67,6 +67,7 @@
         (do (doseq [k ks]
               (let [table (key->table table-count k)]
                 (with-txn-retries
+                  (c/rand-init-txn! test conn)
                   (c/insert! conn table {:tkey k}))))
             (c/attach-txn-info conn (assoc op :type :ok)))
         :read

@@ -351,6 +351,13 @@
 
 (defn parse-long [x] (Long/parseLong x))
 
+(defn parse-sql-stmts
+  "A naive implementation, just split by `;` ."
+  [s]
+  (->> (str/split s #";")
+       (map str/trim)
+       (drop-while empty)))
+
 (def cli-opts
   "Command line options for tools.cli"
   [[nil "--faketime MAX_RATIO"
@@ -473,7 +480,11 @@
     :default false]
 
    [nil "--init-sql STMTS", "SQL Statements to be executed for each connection"
-    :parse-fn #(->> (str/split % #";") (map str/trim) (drop-while empty))
+    :parse-fn parse-sql-stmts
+    :default nil]
+
+   [nil "--init-txn-sql STMTS", "Randomly choose one of these statements, execute it before transactions"
+    :parse-fn parse-sql-stmts
     :default nil]])
 
 (defn test-all-cmd

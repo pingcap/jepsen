@@ -47,7 +47,8 @@
             (catch java.sql.SQLIntegrityConstraintViolationException e nil))))))
 
   (invoke! [this test op]
-    (with-txn op [c conn {:isolation (util/isolation-level test)}]
+    (with-txn op [c conn {:isolation (util/isolation-level test)
+                          :before-hook (partial c/rand-init-txn! test conn)}]
       (try
         (case (:f op)
           :read (->> (c/query c [(str "select * from accounts")])
@@ -109,6 +110,7 @@
           (c/with-conn-failure-retry conn
             (doseq [a (:accounts test)]
               (info "Creating table accounts" a)
+              (c/execute! conn [(str "drop table if exists accounts" a)])
               (c/execute! conn [(str "create table if not exists accounts" a
                                      "(id     int not null primary key,"
                                      "balance bigint not null)")])
@@ -128,32 +130,33 @@
           :read
           (with-txn op [c conn {:isolation :repeatable-read}]
             (->> (:accounts test)
-                (map (fn [x]
+                 (map (fn [x]
                         [x (->> (c/query c [(str "select balance from accounts"
-                                                x)]
+                                                 x)]
                                          {:row-fn :balance})
                                 first)]))
-                (into (sorted-map))
-                (assoc op :type :ok, :value)))
+                 (into (sorted-map))
+                 (assoc op :type :ok, :value)))
 
           :transfer
-          (with-txn op [c conn {:isolation (util/isolation-level test)}]
+          (with-txn op [c conn {:isolation (util/isolation-level test)
+                                :before-hook (partial c/rand-init-txn! test conn)}]
             (let [{:keys [from to amount]} (:value op)
                   from (str "accounts" from)
                   to   (str "accounts" to)
                   b1 (-> c
-                        (c/query
+                         (c/query
                           [(str "select balance from " from
                                 " " (:read-lock test))]
                           {:row-fn :balance})
-                        first
-                        (- amount))
+                         first
+                         (- amount))
                   b2 (-> c
-                        (c/query [(str "select balance from " to
+                         (c/query [(str "select balance from " to
                                         " " (:read-lock test))]
                                   {:row-fn :balance})
-                        first
-                        (+ amount))]
+                         first
+                         (+ amount))]
               (cond (neg? b1)
                     (assoc op :type :fail, :error [:negative from b1])
                     (neg? b2)

@@ -70,7 +70,8 @@
           use-txn? (< 1 (count txn))]
           ;use-txn? false]
           (if use-txn?
-            (c/with-txn op [c conn {:isolation (util/isolation-level test)}]
+            (c/with-txn op [c conn {:isolation (util/isolation-level test)
+                                    :before-hook (partial c/rand-init-txn! test conn)}]
               (assoc op :type :ok, :value
                      (mapv (partial mop! c test table-count) txn)))
             (c/with-error-handling op
