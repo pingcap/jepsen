@@ -306,7 +306,7 @@
     (if-let [start_ts (get-in op [:txn-info :start_ts])]
       (let [txn-info (query-txn-info conn)]
         (if (= start_ts (:start_ts txn-info))
-            (assoc op :txn-info info)
+            (assoc op :txn-info txn-info)
             op))
       op)
     (catch Exception e
