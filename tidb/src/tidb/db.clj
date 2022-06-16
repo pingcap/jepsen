@@ -416,6 +416,16 @@
   []
   (reify db/DB
     (setup! [_ test node]
+      (info node "resetting TiDB")
+      (c/su
+        (stop! test node)
+        (try+ (->> (cu/ls tidb-dir)
+                   (remove #{"bin"})
+                   (map (partial str tidb-dir "/"))
+                   (c/exec :rm :-rf))
+              (catch [:type :jepsen.control/nonzero-exit, :exit 2] e
+                 ; No such dir
+                nil)))
       (c/su
         (install! test node)
         (configure!)
@@ -464,20 +474,7 @@
                 ; siiiiiiiigh
                 (throw+ {:type :jepsen.db/setup-failed})))))
 
-    (teardown! [_ test node]
-      (c/su
-        (info node "tearing down TiDB")
-        (stop! test node)
-        ; Set datetime
-        ; (c/exec :sh :-c "date -s \"$(curl -s --head http://baidu.com | grep ^Date: | sed 's/Date: //g')\"")
-        ; Delete everything but bin/
-        (try+ (->> (cu/ls tidb-dir)
-                   (remove #{"bin"})
-                   (map (partial str tidb-dir "/"))
-                   (c/exec :rm :-rf))
-              (catch [:type :jepsen.control/nonzero-exit, :exit 2] e
-                ; No such dir
-                nil))))
+    (teardown! [_ test node])
 
     db/LogFiles
     (log-files [_ test node]

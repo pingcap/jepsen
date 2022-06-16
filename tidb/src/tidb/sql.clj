@@ -166,6 +166,7 @@
         (try
           ; And however long it takes to run these
           (with-conn-failure-retry c
+            (j/execute! c ["update mysql.tidb set variable_value='72h' where variable_name='tikv_gc_life_time'"])
             (j/execute! c ["create table if not exists jepsen_await
                            (id int primary key, val int)"]))
             (j/insert! c "jepsen_await" {:id  (swap! await-id inc)
