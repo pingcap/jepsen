@@ -58,6 +58,8 @@
         (doseq [t (table-names table-count)]
           (c/execute! conn [(str "create table if not exists " t
                                  " (tkey varchar(255) primary key)")])
+          (when (:table-cache test)
+            (c/execute! conn [(str "alter table " t " cache")]))
           (info "Created table" t)))))
 
   (invoke! [this test op]

@@ -53,6 +53,8 @@
             (c/execute! conn [(str "create table " t
                                    " (id int primary key,
                                        tkey int)")])
+            (when (:table-cache test)
+              (c/execute! conn [(str "alter table " t " cache")]))
             (info "Created table" t))))))
 
 

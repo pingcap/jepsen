@@ -63,7 +63,9 @@
                                val " val-type ")")])
         (when (:use-index test)
           (c/create-index! conn [(str "create index " (table-name i) "_sk_val"
-                                      " on " (table-name i) " (sk, val)")])))))
+                                      " on " (table-name i) " (sk, val)")]))
+        (when (:table-cache test)
+          (c/execute! conn [(str "alter table " (table-name i) " cache")])))))
 
   (invoke! [this test op]
     (let [txn      (:value op)

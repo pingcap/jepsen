@@ -311,6 +311,8 @@
   [opts]
   (let [name (str "TiDB " (:version opts)
                   " " (name (:workload opts))
+                  (when (:table-cache opts)
+                    " table-cache")
                   (when (:auto-retry opts)
                     " auto-retry")
                   (when (not= 0 (:auto-retry-limit opts))
@@ -488,6 +490,9 @@
                   (parse-long x)))
     :validate [(fn [x] (or (= :default x) (not (neg? x))))
                "Must not be negative"]]
+
+   [nil "--table-cache" "If true, run test on cached table(s)."
+    :default false]
 
    [nil "--predicate-read" "If present, try to read using a query over a secondary key, rather than by primary key. Implied by --use-index."
     :default false]

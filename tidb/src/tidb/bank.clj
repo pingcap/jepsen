@@ -37,6 +37,8 @@
                                      (filter even?)
                                      (map #(str "(" % ")"))
                                      (str/join ",")))])
+        (when (:table-cache test)
+          (c/execute! conn ["alter table accounts cache"]))
         (doseq [a (:accounts test)]
           (try
             (with-txn-retries conn
@@ -114,6 +116,8 @@
               (c/execute! conn [(str "create table if not exists accounts" a
                                      "(id     int not null primary key,"
                                      "balance bigint not null)")])
+              (when (:table-cache test)
+                (c/execute! conn [(str "alter table accounts" a " cache")]))
               (try
                 (info "Populating account" a)
                 (c/insert! conn (str "accounts" a)

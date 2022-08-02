@@ -18,7 +18,9 @@
     (c/with-conn-failure-retry conn
       (c/execute! conn ["create table if not exists sets
                         (id     int not null primary key auto_increment,
-                        value  bigint not null)"])))
+                        value  bigint not null)"])
+      (when (:table-cache test)
+        (c/execute! conn ["alter table sets cache"]))))
 
   (invoke! [this test op]
     (c/with-error-handling op
@@ -48,7 +50,9 @@
     (c/with-conn-failure-retry conn
       (c/execute! conn ["create table if not exists sets
                         (id     int not null primary key,
-                        value   text)"])))
+                        value   text)"])
+      (when (:table-cache test)
+        (c/execute! conn ["alter table sets cache"]))))
 
   (invoke! [this test op]
     (c/with-txn op [c conn {:isolation (util/isolation-level test)

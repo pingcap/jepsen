@@ -39,7 +39,9 @@
                          sk   int,
                          val  int)"])
       (when (:use-index test)
-        (c/create-index! conn ["create index test_sk_val on test (sk, val)"]))))
+        (c/create-index! conn ["create index test_sk_val on test (sk, val)"]))
+      (when (:table-cache test)
+        (c/execute! conn ["alter table test cache"]))))
 
   (invoke! [this test op]
     (c/with-error-handling op

@@ -48,7 +48,9 @@
                          sk  int not null,
                          val int)"])
       (when (:use-index test)
-        (c/create-index! conn ["create index cycle_sk_val on cycle (sk, val)"]))))
+        (c/create-index! conn ["create index cycle_sk_val on cycle (sk, val)"]))
+      (when (:table-cache test)
+        (c/execute! conn ["alter table cycle cache"]))))
 
   (invoke! [this test op]
     (c/with-txn op [c conn {:isolation (util/isolation-level test)
