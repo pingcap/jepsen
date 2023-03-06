@@ -77,9 +77,10 @@
               (assoc op :type :ok, :value
                      (mapv (partial mop! c test table-count) txn)))
             (c/with-error-handling op
-              (cond->> (assoc op :type :ok, :value
-                              (mapv (partial mop! conn test table-count) txn))
-                (not= :r (-> txn first first)) (c/attach-txn-info conn))))))
+              (let [attach-info (if (= :r (-> txn first first)) c/attach-query-info c/attach-txn-info)]
+                (attach-info conn
+                             (assoc op :type :ok, :value
+                                    (mapv (partial mop! conn test table-count) txn))))))))
 
   (teardown! [this test])
 

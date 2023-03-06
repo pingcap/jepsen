@@ -40,6 +40,8 @@
 (defn get-start-ts [op] (get-in op [:txn-info :start_ts] 0))
 (defn get-commit-ts [op] (get-in op [:txn-info :commit_ts] 0))
 
+(def max-ts 18446744073709551615N)
+
 (defrecord TSOExplainer []
   DataExplainer
   (explain-pair-data
@@ -50,7 +52,11 @@
     (str a-name "'s commit-ts " (get-commit-ts a) " < " b-name "'s start-ts " (get-start-ts b))))
 
 (defn tso-graph [history]
-  (loop [h (->> history (filter get-start-ts) (sort-by get-start-ts))
+  (loop [h (->> history
+                (filter #(let [start-ts (get-start-ts %)]
+                           (and (pos? start-ts)
+                                (not= max-ts start-ts))))
+                (sort-by get-start-ts))
          g (directed-graph)
          ops nil]
     (if-let [op (first h)]
