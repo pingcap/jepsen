@@ -9,5 +9,6 @@
                  [cheshire "5.8.1"]
                  [org.clojars.pingcap/jepsen "0.1.15-SNAPSHOT"]
                  [org.clojure/java.jdbc "0.7.11"]
-                 [org.mariadb.jdbc/mariadb-java-client "2.4.1"]]
+                 [org.mariadb.jdbc/mariadb-java-client "2.4.1"]
+                 [javax.xml.bind/jaxb-api "2.3.1"]]
   :aot [tidb.core clojure.tools.logging.impl])

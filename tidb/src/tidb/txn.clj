@@ -99,6 +99,7 @@
           (c/execute! conn [(str "alter table " (table-name i) " cache")])))))
 
   (invoke! [this test op]
+    (c/set-auto-commit! conn true)
     (let [txn (:value op)]
       (condp = (txn-type test table-count txn)
 

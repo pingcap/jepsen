@@ -87,6 +87,12 @@
     (.close c))
   (dissoc conn :connection))
 
+(defn set-auto-commit!
+  "Set a JDBC connection's autocommit variable."
+  [conn auto-commit]
+  (when-let [c (j/db-find-connection conn)]
+    (.setAutoCommit c auto-commit)))
+
 (defn reopen!
   "Closes a connection and returns a new one based on the given connection."
   [conn]
