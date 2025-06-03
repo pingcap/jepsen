@@ -87,17 +87,22 @@
     (.close c))
   (dissoc conn :connection))
 
-(defn set-auto-commit!
-  "Set a JDBC connection's autocommit variable."
-  [conn auto-commit]
-  (when-let [c (j/db-find-connection conn)]
-    (.setAutoCommit c auto-commit)))
-
 (defn reopen!
   "Closes a connection and returns a new one based on the given connection."
   [conn]
   (close! conn)
   (open (::node conn) (::test conn)))
+
+(defn set-auto-commit!
+  "Set a JDBC connection's autocommit variable, will retry until success."
+  [conn auto-commit]
+  (when-let [c (j/db-find-connection conn)]
+    (loop []
+      (try
+        (.setAutoCommit c auto-commit)
+        (catch Exception e
+          (info "Failed to set auto-commit, error" e "retrying...")
+          (Thread/sleep 100))))))
 
 (defn execute!
   "Like j/execute!, but provides a default timeout."
