@@ -97,12 +97,7 @@
   "Set a JDBC connection's autocommit variable, will retry until success."
   [conn auto-commit]
   (when-let [c (j/db-find-connection conn)]
-    (loop []
-      (try
-        (.setAutoCommit c auto-commit)
-        (catch Exception e
-          (info "Failed to set auto-commit, error" e "retrying...")
-          (Thread/sleep 100))))))
+    (.setAutoCommit c auto-commit)))
 
 (defn execute!
   "Like j/execute!, but provides a default timeout."
