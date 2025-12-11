@@ -341,6 +341,11 @@
                      (throw (.getCause ee#))))]
      (if (= retval# ::timeout)
        (do (future-cancel worker#)
+           ; Wait until the worker actually finishes after cancellation.
+           (loop []
+             (when-not (future-done? worker#)
+               (Thread/sleep 1)
+               (recur)))
            ~timeout-val)
        retval#)))
 
