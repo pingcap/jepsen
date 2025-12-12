@@ -81,9 +81,11 @@
                                (let [{:keys [from to amount]} (:value op)]
                                  (insert-bank-record! c {:from from :to to :amount amount})
                                  op))]
-                    ; the :txn-info from fk-op is attached as :fk-txn-info
-                    (cond-> op
-                      (:txn-info fk-op) (assoc :fk-txn-info (:txn-info fk-op))))
+                   ; set the auto-commit back to true after the foreign key txn
+                   (c/set-auto-commit! conn true)
+                   ; the :txn-info from fk-op is attached as :fk-txn-info
+                   (cond-> op
+                     (:txn-info fk-op) (assoc :fk-txn-info (:txn-info fk-op))))
                  op)]
 
         (with-txn op [c conn {:isolation (util/isolation-level test)
