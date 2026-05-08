@@ -48,6 +48,13 @@
 (def system-db-pid-file    (str tidb-dir "/system-db.pid"))
 (def system-db-port        14000)
 (def system-db-status-port 11080)
+(def tikv-worker-bin         "tikv-worker")
+(def tikv-worker-config-file (str tidb-dir "/tikv-worker.conf"))
+(def tikv-worker-log-file    (str tidb-dir "/tikv-worker.log"))
+(def tikv-worker-stdout      (str tidb-dir "/tikv-worker.stdout"))
+(def tikv-worker-pid-file    (str tidb-dir "/tikv-worker.pid"))
+(def tikv-worker-data-dir    (str tidb-dir "/data/tikv-worker"))
+(def tikv-worker-port        19000)
 (def pd-services
   {:api
    {:bin "pd-api"
@@ -132,6 +139,12 @@
   []
   (c/su (c/exec :echo (slurp (io/resource "system-tidb.conf"))
                 :> system-db-config-file)))
+
+(defn configure-tikv-worker!
+  "Writes configuration file for tikv-worker"
+  []
+  (c/su (c/exec :echo (slurp (io/resource "tikv-worker.conf"))
+                :> tikv-worker-config-file)))
 
 (defn configure!
   "Write all config files."
@@ -298,6 +311,21 @@
       :-P               (str system-db-port)
       :--status         (str system-db-status-port))))
 
+(defn start-tikv-worker!
+  "Starts the TiKV-Worker daemon"
+  [test node]
+  (c/su
+    (cu/start-daemon!
+      {:logfile tikv-worker-stdout
+       :pidfile tikv-worker-pid-file
+       :chdir   tidb-dir}
+      (str "./bin/" tikv-worker-bin)
+      :--addr                  (str "0.0.0.0:" tikv-worker-port)
+      :--pd-endpoints          (pd-endpoints test)
+      :--config                tikv-worker-config-file
+      :--log-file              tikv-worker-log-file
+      :--data-dir              tikv-worker-data-dir)))
+
 (defn page-ready?
   "Fetches a status page URL on the local node, and returns true iff the page
   was available."
@@ -325,6 +353,11 @@
   "Is the SYSTEM TiDB instance ready?"
   []
   (page-ready? (str "http://127.0.0.1:" system-db-status-port "/status")))
+
+(defn tikv-worker-ready?
+  "Is TiKV-Worker ready?"
+  []
+  (page-ready? (str "http://127.0.0.1:" tikv-worker-port "/healthz")))
 
 (defn restart-loop*
   "TiDB is fragile on startup; processes love to crash if they can't complete
@@ -405,6 +438,14 @@
                       (cu/daemon-running? system-db-pid-file)  :starting
                       true                                     :crashed)))
 
+(defn start-wait-tikv-worker!
+  "Starts TiKV-Worker, waiting for its status page to come online."
+  [test node]
+  (restart-loop :tikv-worker (start-tikv-worker! test node)
+                (cond (tikv-worker-ready?)                       :ready
+                      (cu/daemon-running? tikv-worker-pid-file)  :starting
+                      true                                       :crashed)))
+
 (defn stop-pd-service! [test node svc]
   (c/su
     (cu/stop-daemon! (get-in pd-services [svc :bin]) (get-in pd-services [svc :pid-file]))
@@ -429,14 +470,20 @@
     (cu/stop-daemon! db-bin system-db-pid-file)
     (cu/grepkill! db-bin)))
 
+(defn stop-tikv-worker! [test node]
+  (c/su
+    (cu/stop-daemon! tikv-worker-bin tikv-worker-pid-file)
+    (cu/grepkill! tikv-worker-bin)))
+
 (defn stop-db! [test node] (c/su (cu/stop-daemon! db-bin db-pid-file)
                                  (cu/grepkill! db-bin)))
 
 (defn stop!
   "Stops all daemons"
   [test node]
-  (when (:enable-system-tidb test)
-    (stop-system-db! test node))
+  (when (:enable-tidbx test)
+    (stop-system-db! test node)
+    (stop-tikv-worker! test node))
   (stop-db! test node)
   (stop-kv! test node)
   (stop-pd! test node))
@@ -480,7 +527,7 @@
       (when (not (cu/exists? tidb-bin-dir))
         (info "Creating bin layout for TiDB tarball")
         (c/exec :mkdir :-p tidb-bin-dir)
-        (doseq [b [pd-bin kv-bin db-bin pdctl-bin]]
+        (doseq [b [pd-bin kv-bin db-bin pdctl-bin tikv-worker-bin]]
           (when (cu/exists? (str tidb-dir "/" b))
             (c/exec :ln :-sf (str tidb-dir "/" b)
                     (str tidb-bin-dir "/" b)))))
@@ -546,7 +593,7 @@
   []
   (reify db/DB
     (setup! [_ test node]
-      (let [enable-system? (:enable-system-tidb test)]
+      (let [enable-tidbx? (:enable-tidbx test)]
         (info node "resetting TiDB")
         (c/su
           (stop! test node)
@@ -560,8 +607,9 @@
         (c/su
           (install! test node)
           (configure!)
-          (when enable-system?
-            (configure-system-db!))
+          (when enable-tidbx?
+            (configure-system-db!)
+            (configure-tikv-worker!))
           (jepsen/synchronize test 180)
 
           (try+ (start-wait-pd! test node)
@@ -573,6 +621,11 @@
                 (start-wait-kv! test node)
                 (jepsen/synchronize test)
 
+                ; Start tikv-worker after TiKV, before waiting for replicas
+                (when enable-tidbx?
+                  (start-wait-tikv-worker! test node)
+                  (jepsen/synchronize test))
+
                 ; We have to wait for every region to become totally replicated
                 ; before starting any TiDB instance: if we start TiDB first, it
                 ; might take 80+ minutes to converge.
@@ -581,7 +634,7 @@
 
                 (Thread/sleep 5000)
 
-                (when enable-system?
+                (when enable-tidbx?
                   (start-wait-system-db! test node)
                   (jepsen/synchronize test)
                   (Thread/sleep 10000))
@@ -622,10 +675,12 @@
                             db-stdout
                             kv-log-file
                             kv-stdout]
-                     (:enable-system-tidb test)
+                     (:enable-tidbx test)
                      (into [system-db-log-file
                             system-db-slow-file
-                            system-db-stdout]))
+                            system-db-stdout
+                            tikv-worker-log-file
+                            tikv-worker-stdout]))
               pd-logs (if (:pd-services test)
                         [(get-in pd-services [:api :log-file])
                          (get-in pd-services [:api :stdout])

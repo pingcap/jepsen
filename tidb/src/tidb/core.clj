@@ -162,12 +162,15 @@
     :kill-pd
     :kill-kv
     :kill-db
+    :kill-tikv-worker
     :stop-pd
     :stop-kv
     :stop-db
+    :stop-tikv-worker
     :pause-pd
     :pause-kv
     :pause-db
+    :pause-tikv-worker
     :schedules
     :shuffle-leader
     :shuffle-region
@@ -181,7 +184,9 @@
 
 (def process-faults
   "Faults affecting individual processes"
-  [:kill-pd :kill-kv :kill-db :stop-pd :stop-kv :stop-db :pause-pd :pause-kv :pause-db])
+  [:kill-pd :kill-kv :kill-db :kill-tikv-worker
+   :stop-pd :stop-kv :stop-db :stop-tikv-worker
+   :pause-pd :pause-kv :pause-db :pause-tikv-worker])
 
 (def network-faults
   "Faults affecting the network"
@@ -252,6 +257,13 @@
        ; Convert to maps like {:fault-type true}
        (map (fn [faults] (zipmap faults (repeat true))))))
 
+(defn without-tikv-worker-faults
+  "Drops TiKV-Worker nemesis options from generated test suites."
+  [nemeses]
+  (->> nemeses
+       (map #(apply dissoc % nemesis/tikv-worker-faults))
+       distinct))
+
 (def plot-spec
   "Specification for how to render operations in plots"
   {:nemeses #{{:name        "kill pd"
@@ -266,6 +278,10 @@
                :color       "#E9A0CF"
                :start       #{:kill-db :stop-db}
                :stop        #{:start-db}}
+              {:name        "kill tikv-worker"
+               :color       "#E9C0A0"
+               :start       #{:kill-tikv-worker :stop-tikv-worker}
+               :stop        #{:start-tikv-worker}}
               {:name        "pause pd"
                :color       "#C5A0E9"
                :start       #{:pause-pd}
@@ -278,6 +294,10 @@
                :color       "#A6A0E9"
                :start       #{:pause-db}
                :stop        #{:resume-db}}
+              {:name        "pause tikv-worker"
+               :color       "#D9C0A0"
+               :start       #{:pause-tikv-worker}
+               :stop        #{:resume-tikv-worker}}
               {:name        "shuffle-leader"
                :color       "#A6D0E9"
                :start       #{:shuffle-leader}
@@ -408,7 +428,7 @@
 
    [nil "--force-reinstall" "Don't re-use an existing TiDB directory"]
 
-   [nil "--enable-system-tidb" "Start a dedicated SYSTEM keyspace TiDB alongside the primary instance."
+   [nil "--enable-tidbx" "Enable TiDBX mode."
     :default false]
 
    [nil "--nemesis-interval SECONDS"
@@ -591,9 +611,11 @@
                                       workload-options)
                       workloads (cond->> (all-workload-options workload-opts)
                                   w (filter (comp #{w} :workload)))
-                      nemeses   (cond
-                                  (:quick options)  quick-nemeses
-                                  true              all-nemeses)
+                      nemeses   (cond->> (if (:quick options)
+                                           quick-nemeses
+                                           all-nemeses)
+                                  (not (:enable-tidbx options))
+                                  without-tikv-worker-faults)
                       tests (for [nemesis   nemeses
                                   workload  workloads
                                   i         (range (:test-count options))]

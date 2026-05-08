@@ -18,7 +18,7 @@
             [slingshot.slingshot :refer [try+ throw+]]))
 
 (defn process-nemesis
-  "A nemesis that can pause, resume, start, stop, and kill tidb, tikv, and pd."
+  "A nemesis that can pause, resume, start, stop, and kill tidb, tikv, tikv-worker, and pd."
   []
   (reify nemesis/Nemesis
     (setup! [this test] this)
@@ -27,8 +27,8 @@
       (let [nodes (:nodes test)
             nodes (case (:f op)
                     ; When resuming, resume all nodes
-                    (:resume-pd :resume-kv :resume-db
-                     :start-pd  :start-kv  :start-db) nodes
+                    (:resume-pd :resume-kv :resume-db :resume-tikv-worker
+                     :start-pd  :start-kv  :start-db  :start-tikv-worker) nodes
 
                     (take (condp > (rand) 0.4 1 0.7 2 0.85 3 0.95 4 5) (shuffle nodes)))
             ; If the op wants to give us nodes, that's great
@@ -37,21 +37,26 @@
                (c/on-nodes test nodes
                            (fn [test node]
                              (case (:f op)
-                               :start-pd  (db/start-pd! test node)
-                               :start-kv  (db/start-kv! test node)
-                               :start-db  (db/start-db! test node)
-                               :kill-pd   (db/stop-pd!  test node)
-                               :kill-kv   (db/stop-kv!  test node)
-                               :kill-db   (db/stop-db!  test node)
-                               :stop-pd   (cu/signal! db/pd-bin :TERM)
-                               :stop-kv   (cu/signal! db/kv-bin :TERM)
-                               :stop-db   (cu/signal! db/db-bin :TERM)
-                               :pause-pd  (cu/signal! db/pd-bin :STOP)
-                               :pause-kv  (cu/signal! db/kv-bin :STOP)
-                               :pause-db  (cu/signal! db/db-bin :STOP)
-                               :resume-pd (cu/signal! db/pd-bin :CONT)
-                               :resume-kv (cu/signal! db/kv-bin :CONT)
-                               :resume-db (cu/signal! db/db-bin :CONT)))))))
+                               :start-pd          (db/start-pd! test node)
+                               :start-kv          (db/start-kv! test node)
+                               :start-db          (db/start-db! test node)
+                               :start-tikv-worker (db/start-tikv-worker! test node)
+                               :kill-pd           (db/stop-pd!  test node)
+                               :kill-kv           (db/stop-kv!  test node)
+                               :kill-db           (db/stop-db!  test node)
+                               :kill-tikv-worker  (db/stop-tikv-worker! test node)
+                               :stop-pd           (cu/signal! db/pd-bin :TERM)
+                               :stop-kv           (cu/signal! db/kv-bin :TERM)
+                               :stop-db           (cu/signal! db/db-bin :TERM)
+                               :stop-tikv-worker  (cu/signal! db/tikv-worker-bin :TERM)
+                               :pause-pd          (cu/signal! db/pd-bin :STOP)
+                               :pause-kv          (cu/signal! db/kv-bin :STOP)
+                               :pause-db          (cu/signal! db/db-bin :STOP)
+                               :pause-tikv-worker (cu/signal! db/tikv-worker-bin :STOP)
+                               :resume-pd         (cu/signal! db/pd-bin :CONT)
+                               :resume-kv         (cu/signal! db/kv-bin :CONT)
+                               :resume-db         (cu/signal! db/db-bin :CONT)
+                               :resume-tikv-worker (cu/signal! db/tikv-worker-bin :CONT)))))))
 
     (teardown! [this test])))
 
@@ -227,11 +232,11 @@
   "Merges together all nemeses"
   [n]
   (nemesis/compose
-    {#{:start-pd  :start-kv  :start-db
-       :kill-pd   :kill-kv   :kill-db
-       :stop-pd   :stop-kv   :stop-db
-       :pause-pd  :pause-kv  :pause-db
-       :resume-pd :resume-kv :resume-db}    (process-nemesis)
+    {#{:start-pd  :start-kv  :start-db  :start-tikv-worker
+       :kill-pd   :kill-kv   :kill-db   :kill-tikv-worker
+       :stop-pd   :stop-kv   :stop-db   :stop-tikv-worker
+       :pause-pd  :pause-kv  :pause-db  :pause-tikv-worker
+       :resume-pd :resume-kv :resume-db :resume-tikv-worker}    (process-nemesis)
      #{:shuffle-leader  :del-shuffle-leader
        :shuffle-region  :del-shuffle-region
        :random-merge    :del-random-merge}  (schedule-nemesis)
@@ -256,6 +261,17 @@
    {:type :info, :f f, :value v})
   ([f v & args]
    (apply assoc (op f v) args)))
+
+(def tikv-worker-faults
+  "Nemesis options that require TiKV-Worker to be configured and running."
+  #{:kill-tikv-worker
+    :stop-tikv-worker
+    :pause-tikv-worker})
+
+(defn uses-tikv-worker?
+  "True if nemesis options directly target TiKV-Worker."
+  [n]
+  (some tikv-worker-faults (keys n)))
 
 (defn partition-one-gen
   "A generator for a partition that isolates one node."
@@ -338,18 +354,24 @@
              (op :start-kv))
           (o {:kill-db (op :kill-db)}
              (op :start-db))
+          (o {:kill-tikv-worker (op :kill-tikv-worker)}
+             (op :start-tikv-worker))
           (o {:stop-pd (op :stop-pd)}
              (op :start-pd))
           (o {:stop-kv (op :stop-kv)}
              (op :start-kv))
           (o {:stop-db (op :stop-db)}
              (op :start-db))
+          (o {:stop-tikv-worker (op :stop-tikv-worker)}
+             (op :start-tikv-worker))
           (o {:pause-pd (op :pause-pd)}
              (op :resume-pd))
           (o {:pause-kv (op :pause-kv)}
              (op :resume-kv))
           (o {:pause-db (op :pause-db)}
              (op :resume-db))
+          (o {:pause-tikv-worker (op :pause-tikv-worker)}
+             (op :resume-tikv-worker))
           (o {:shuffle-leader (op :shuffle-leader)}
              (op :del-shuffle-leader))
           (o {:shuffle-region (op :shuffle-region)}
@@ -383,19 +405,22 @@
   [n]
   (->> (cond-> []
          ; (:clock-skew n)      (conj :reset-clock)
-         (:pause-pd n)        (conj :resume-pd)
-         (:pause-kv n)        (conj :resume-kv)
-         (:pause-db n)        (conj :resume-db)
-         (:kill-pd n)         (conj :start-pd)
-         (:kill-kv n)         (conj :start-kv)
-         (:kill-db n)         (conj :start-db)
-         (:stop-pd n)         (conj :start-pd)
-         (:stop-kv n)         (conj :start-kv)
-         (:stop-db n)         (conj :start-db)
-         (:shuffle-leader n)  (conj :del-shuffle-leader)
-         (:shuffle-region n)  (conj :del-shuffle-region)
-         (:random-merge n)    (conj :del-random-merge)
-         (:start-netem n)     (conj :stop-netem)
+         (:pause-pd n)          (conj :resume-pd)
+         (:pause-kv n)          (conj :resume-kv)
+         (:pause-db n)          (conj :resume-db)
+         (:pause-tikv-worker n) (conj :resume-tikv-worker)
+         (:kill-pd n)           (conj :start-pd)
+         (:kill-kv n)           (conj :start-kv)
+         (:kill-db n)           (conj :start-db)
+         (:kill-tikv-worker n)  (conj :start-tikv-worker)
+         (:stop-pd n)           (conj :start-pd)
+         (:stop-kv n)           (conj :start-kv)
+         (:stop-db n)           (conj :start-db)
+         (:stop-tikv-worker n)  (conj :start-tikv-worker)
+         (:shuffle-leader n)    (conj :del-shuffle-leader)
+         (:shuffle-region n)    (conj :del-shuffle-region)
+         (:random-merge n)      (conj :del-random-merge)
+         (:start-netem n)       (conj :stop-netem)
 
          (:enable-failpoint n)
          (conj :disable-failpoint)
@@ -464,18 +489,24 @@
 
 (defn expand-options
   "We support shorthand options in nemesis maps, like :kill, which expands to
-  :kill-pd, :kill-kv, and :kill-db. This function expands those."
-  [n]
+  process-specific faults. This function expands those."
+  [n enable-tikv-worker?]
   (cond-> n
     (:kill n) (assoc :kill-pd true
                      :kill-kv true
-										 :kill-db true)
+                     :kill-db true)
+    (and (:kill n) enable-tikv-worker?)
+    (assoc :kill-tikv-worker true)
     (:stop n) (assoc :stop-pd true
                      :stop-kv true
                      :stop-db true)
+    (and (:stop n) enable-tikv-worker?)
+    (assoc :stop-tikv-worker true)
     (:pause n) (assoc :pause-pd true
                       :pause-kv true
                       :pause-db true)
+    (and (:pause n) enable-tikv-worker?)
+    (assoc :pause-tikv-worker true)
     (:schedules n) (assoc :shuffle-leader true
                           :shuffle-region true
                           :random-merge true)
@@ -489,7 +520,13 @@
 (defn nemesis
   "Composite nemesis and generator, given test options."
   [opts]
-  (let [n (expand-options (:nemesis opts))]
+  (let [enable-tikv-worker? (:enable-tidbx opts)
+        n (expand-options (:nemesis opts) enable-tikv-worker?)]
+    (when (and (not enable-tikv-worker?)
+               (uses-tikv-worker? n))
+      (throw+ {:type    :tikv-worker-nemesis-requires-tidbx
+               :message "tikv-worker nemesis requires --enable-tidbx"
+               :nemesis (select-keys n tikv-worker-faults)}))
     {:nemesis         (full-nemesis n)
      :generator       (full-generator n)
      :final-generator (final-generator n)}))
