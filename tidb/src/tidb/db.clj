@@ -38,7 +38,8 @@
 (def kv-data-dir    (str tidb-dir "/data/kv"))
 (def db-config-file (str tidb-dir "/db.conf"))
 (def db-log-file    (str tidb-dir "/db.log"))
-(def db-slow-file   (str tidb-dir "/slow.log"))
+(def db-slog-file   (str tidb-dir "/slow.log"))
+(def db-glog-file   (str tidb-dir "/general.log"))
 (def db-stdout      (str tidb-dir "/db.stdout"))
 (def db-pid-file    (str tidb-dir "/db.pid"))
 (def system-db-config-file (str tidb-dir "/system-db.conf"))
@@ -389,7 +390,7 @@
         (start!))
 
       ; Give it a bit
-      (Thread/sleep 10000)
+      (Thread/sleep (if (= name :db) 20000 10000))
 
       ; OK, how's it doing?
       (let [status (get-status)]
@@ -629,7 +630,8 @@
                 ; We have to wait for every region to become totally replicated
                 ; before starting any TiDB instance: if we start TiDB first, it
                 ; might take 80+ minutes to converge.
-                (wait-for-replica-count node)
+                (when (>= (count (:nodes test)) 3)
+                  (wait-for-replica-count node))
                 (jepsen/synchronize test)
 
                 (Thread/sleep 5000)
@@ -671,7 +673,8 @@
     (log-files [_ test node]
       (when-not (:skip-collect-logs test)
         (let [base (cond-> [db-log-file
-                            db-slow-file
+                            db-slog-file
+                            db-glog-file
                             db-stdout
                             kv-log-file
                             kv-stdout]

@@ -33,16 +33,19 @@
 (defn init-sql
   [test]
   (cond-> (:init-sql test)
-          (not= :default (:auto-retry test)) (conj (str "set @@tidb_disable_txn_auto_retry = " (if (:auto-retry test) 0 1)))
-          (not= :default (:auto-retry-limit test)) (conj (str "set @@tidb_retry_limit = " (:auto-retry-limit test 10)))
-          (:follower-read test) (conj "set @@tidb_replica_read = 'follower'")
-          true (conj (str "set @@tidb_txn_mode = '" (txn-mode test) "'"))
-          true (conj "set @@tidb_general_log = 1")))
+          (:follower-read test) (conj "set @@tidb_replica_read = 'follower'")))
 
 (defn init-conn!
   "Sets initial variables on a connection, based on test options.
   Returns conn."
   [conn test]
+  (j/execute! conn [(str "set"
+                         " @@innodb_lock_wait_timeout = 3,"
+                         " @@tidb_general_log = 1,"
+                         " @@tidb_idle_transaction_timeout = 2,"
+                         " @@tidb_enable_mutation_checker=1,"
+                         " @@tidb_txn_assertion_level=strict,"
+                         " @@tidb_txn_mode = '" (txn-mode test) "'")])
   (doseq [stmt (init-sql test)]
     (info (str "init> " stmt))
     (j/execute! conn [stmt]))
@@ -185,7 +188,7 @@
 
 (def rollback-msg
   "mariadb drivers have a few exception classes that use this message"
-  "Deadlock found when trying to get lock; try restarting transaction")
+  "try restarting transaction")
 
 (defmacro capture-txn-abort
   "Converts aborted transactions to an ::abort keyword"
@@ -202,6 +205,7 @@
         (catch java.sql.SQLException e#
           (condp re-find (.getMessage e#)
             #"can not retry select for update statement" ::abort
+            #"try restarting transaction" ::abort
             #"\[try again later\]" ::abort
             (throw e#)))))
 
@@ -240,17 +244,22 @@
         (throw e#)))
 
     (catch clojure.lang.ExceptionInfo e#
-      (cond (= "Connection is closed" (.cause (:rollback (ex-data e#))))
-            (assoc ~op :type :info, :error :conn-closed-rollback-failed)
+      (let [rollback-msg# (-> e# ex-data :rollback str)]
+        (cond (str/includes? rollback-msg#
+                             "Interrupted reading remaining batch response")
+              (assoc ~op :type :info, :error :query-timed-out)
 
-            (= "createStatement() is called on closed connection"
-               (.cause (:rollback (ex-data e#))))
-            (assoc ~op :type :fail, :error :conn-closed-rollback-failed)
+              (str/includes? rollback-msg#
+                             "Connection is closed")
+              (assoc ~op :type :info, :error :conn-closed-rollback-failed)
 
-            true (do (info e# :caught (pr-str (ex-data e#)))
-                     (info :caught-rollback (:rollback (ex-data e#)))
-                     (info :caught-cause    (.cause (:rollback (ex-data e#))))
-                     (throw e#))))))
+              (str/includes? rollback-msg#
+                             "createStatement() is called on closed connection")
+              (assoc ~op :type :fail, :error :conn-closed-rollback-failed)
+
+              true (do (info :caught (pr-str (ex-data e#)))
+                       (info :caught-rollback rollback-msg#)
+                       (throw e#)))))))
 
 (defmacro with-txn
   "Executes body in a transaction, with a timeout, automatically retrying

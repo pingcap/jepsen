@@ -51,6 +51,7 @@
    :monotonic       monotonic/inc-workload
    :txn-cycle       monotonic/txn-workload
    :append          monotonic/append-workload
+   :append-slock    monotonic/append-slock-workload
    :register        register/workload
    :set             set/workload
    :set-cas         set/cas-workload
@@ -64,6 +65,8 @@
                      :auto-retry-limit      [10 0]
                      :read-lock             [nil "FOR UPDATE"]
                      :predicate-read        [true false]}
+   :append-slock    {:auto-retry            [true false]
+                     :auto-retry-limit      [10 0]}
    :bank            {:auto-retry            [true false]
                      :auto-retry-limit      [10 0]
                      :update-in-place       [true false]

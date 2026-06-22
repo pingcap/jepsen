@@ -6,6 +6,7 @@
   key y decrease."
   (:require [clojure.string :as str]
             [clojure.tools.logging :refer [info]]
+            [clojure.java.jdbc :as j]
             [jepsen [client :as client]
                     [checker :as checker]
                     [generator :as gen]]
@@ -212,6 +213,58 @@
     (close! [this test]
       (client/close! client test))))
 
+(defn do-append-with-slock!
+  [conn spec [f k v]]
+  [f k
+   (case f
+     :r
+     (let [tx (:tx (first (c/query conn ["select @@tidb_current_ts as tx"])))
+           n  (-> conn
+                  (c/query  ["select n from xlock where k = ?" k])
+                  first (:n 0))]
+       (if (> n 0)
+         (do ; slock read
+           (c/execute! conn ["insert into slock(k, tx) values (?, ?)" k, tx])
+           (mapv :v (j/with-db-transaction [cc spec] ; do snapshot read in an another session
+                      ; the op txn might be [(append k) (read k)], then the op txn is actually holding a xlock on k,
+                      ; then the following insert should fail with timeout or constraint error (when the xlock record is
+                      ; inserted by op txn).
+                      (c/query cc [(str "/* read within " tx " */ insert into slock(k, tx) values (?, @@tidb_current_ts)") k])
+                      ; now the op txn holds slock and the read txn also holds slock, we can do snapshot read safely.
+                      (c/query cc [(str "/* read within " tx " */ select v from item where k = ? order by n") k]))))
+         (do ; xlock read
+           (c/execute! conn ["insert into xlock(k, n) values (?, 0) on duplicate key update n=n" k])
+           (mapv :v (c/query conn ["select v from item where k = ? order by n for update" k])))))
+     :append
+     (let [n (-> conn
+                 (c/query ["select n from xlock where k = ? for update" k])
+                 first (:n 0) inc)]
+       (c/execute! conn ["replace into xlock(k, n) values (?, ?)" k n])
+       (c/execute! conn ["insert into item(k, v, n) values (?, ?, ?)" k v n])
+       v))])
+
+(defrecord AppendClientWithSLock [conn spec]
+  client/Client
+  (open! [this test node] (assoc this :conn (c/open node test) :spec (c/conn-spec node)))
+  (close! [this test] (c/close! conn))
+
+  (setup!
+   [this test]
+   (c/with-conn-failure-retry conn
+     (c/execute! conn ["create table if not exists item (k int, v int, n int)"])
+     (c/execute! conn ["create table if not exists xlock (k int primary key, n int)"])
+     (c/execute! conn [(str "create table if not exists slock (k int, tx bigint, "
+                            "constraint fk_lock foreign key (k) references xlock(k) "
+                            "on delete cascade on update cascade)")])))
+  (invoke!
+    [this test op]
+    (c/with-txn op [c conn {:isolation (util/isolation-level test)
+                            :before-hook (partial c/rand-init-txn! test conn)}]
+      (assoc op :type :ok, :value
+             (mapv (partial do-append-with-slock! c spec) (:value op)))))
+
+  (teardown! [this test]))
+
 (defn append-txns
   "Like wr-txns, we just rewrite writes to be appends."
   [opts]
@@ -230,4 +283,16 @@
    :checker (append/checker {:anomalies         [(if (= :read-committed (:isolation opts)) :G1 :G-single)]
                              ; Jepsen may raise an IllegalStateException("Don't know how to classify") if a cycle only
                              ; consists of realtime edges and tso edges, which is typically caused by wrong tso info.
+                             :additional-graphs [cycle/realtime-graph]})})
+
+(defn append-slock-workload
+  [opts]
+  {:client (AppendClientWithSLock. nil nil)
+   :generator (->> (append-txns {:min-txn-length      1
+                                 :max-txn-length      2
+                                 :key-count           5
+                                 :max-writes-per-key  16})
+                   (map (fn [txn] {:type :invoke, :f :txn, :value txn}))
+                   gen/seq)
+   :checker (append/checker {:anomalies         [(if (= :read-committed (:isolation opts)) :G1 :G-single)]
                              :additional-graphs [cycle/realtime-graph]})})
